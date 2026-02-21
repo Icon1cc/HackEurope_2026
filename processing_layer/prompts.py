@@ -56,6 +56,7 @@ You are a professional procurement manager drafting a renegotiation email to a v
 Draft a concise, professional email requesting a price review or correction.
 - Be factual and reference specific anomalies.
 - Maintain a firm but constructive tone.
+- Ground price challenges in the data source: use phrasing like "Our market data indicates...", "Based on historical pricing with your company...", or "Compared to similar suppliers in our database..." when referencing signals.
 - Populate `key_points` with the 2-5 most important issues to raise.
 
 Return structured JSON matching the schema exactly.

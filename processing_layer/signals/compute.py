@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ..constants import PRICE_TOLERANCE_PCT
 from ..schemas.invoice import InvoiceExtraction
-from .schema import PriceSignal
+from ..schemas.signals import PriceSignal
 
 
 def compute_signals(extraction: InvoiceExtraction, context: dict) -> list[PriceSignal]:

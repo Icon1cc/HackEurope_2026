@@ -12,7 +12,7 @@ from ..schemas.invoice import InvoiceExtraction
 from ..schemas.result import InvoiceAction, InvoiceResult
 from ..schemas.rubric import InvoiceRubric
 from ..signals.compute import compute_signals
-from ..signals.schema import PriceSignal
+from ..schemas.signals import PriceSignal
 from ..tools.market_data import MarketDataTool
 from ..tools.sql_db import SqlDatabaseTool
 

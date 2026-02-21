@@ -5,7 +5,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from .invoice import InvoiceExtraction, LineItem
-from ..signals.schema import PriceSignal
+from .signals import PriceSignal
 
 
 class AnomalySeverity(str, Enum):
