@@ -10,6 +10,7 @@ class VendorCreate(BaseModel):
     category: str = "computing"
     email: str | None = None
     registered_iban: str | None = None
+    vendor_address: str | None = None
 
 
 class VendorUpdate(BaseModel):
@@ -17,6 +18,7 @@ class VendorUpdate(BaseModel):
     category: str | None = None
     email: str | None = None
     registered_iban: str | None = None
+    vendor_address: str | None = None
     known_iban_changes: list[dict[str, Any]] | None = None
     avg_invoice_amount: Decimal | None = None
     invoice_count: int | None = None
@@ -46,6 +48,7 @@ class VendorResponse(BaseModel):
     invoice_count: int
     trust_score: Decimal
     auto_approve_threshold: int
+    vendor_address: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

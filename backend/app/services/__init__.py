@@ -4,6 +4,8 @@ from app.services.payment import PaymentService
 from app.services.override import OverrideService
 from app.services.client import ClientService
 from app.services.market_data import MarketDataService
+from app.services.item import ItemService
+from app.services.cloud_pricing import CloudPricingService
 
 __all__ = [
     "InvoiceService",
@@ -12,4 +14,6 @@ __all__ = [
     "OverrideService",
     "ClientService",
     "MarketDataService",
+    "ItemService",
+    "CloudPricingService",
 ]
