@@ -13,6 +13,14 @@ LLM-powered invoice processing pipeline. Takes raw invoice documents (PDF or ima
 4. **LLM synthesis** — single Gemini call receives signal statements (not raw data), returns `InvoiceAnalysis` with anomaly flags, `confidence_score` (0–100), and auditor summary
 5. **Injection** — deterministic signals injected into final result post-LLM (immutable)
 
+**Gemini API calls:**
+
+| Call | Method | Output |
+|---|---|---|
+| Invoice extraction (image) | `generate_structured_from_image` | `InvoiceExtraction` |
+| Invoice extraction (PDF) | `generate_structured_from_pdf` (File API) | `InvoiceExtraction` |
+| Anomaly analysis | `generate_structured` (text prompt + signals) | `InvoiceAnalysis` |
+
 **Key design choices:**
 - All LLM calls use `response_json_schema` + `model_validate_json` (explicit JSON Schema, no SDK magic)
 - Fail-fast everywhere: assert preconditions, raise on bad state, no silent defaults

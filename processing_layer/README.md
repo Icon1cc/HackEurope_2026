@@ -1,21 +1,49 @@
 # processing_layer
 
-LLM-powered document processing — structured extraction from invoices (images + PDFs).
+LLM-powered invoice processing — extraction, anomaly detection, confidence scoring.
+
+## Quickstart
+
+```bash
+cp .env.example .env  # set GEMINI_API_KEY
+uv sync && pytest tests/
+```
+
+## Integration
+
+```python
+from processing_layer.llm.gemini import GeminiProvider
+from processing_layer.extraction.invoice import InvoiceExtractor
+
+extractor = InvoiceExtractor(GeminiProvider())
+extraction = extractor.extract_from_pdf(pdf_bytes)   # or extract_from_image(bytes, mime)
+extraction.model_dump()   # serialize to dict/JSON for storage or downstream use
+```
+
+For anomaly analysis, implement `SqlDatabaseTool` and `MarketDataTool` (subclass, fill `NotImplementedError` methods), then:
+
+```python
+from processing_layer.analysis.invoice import InvoiceAnalyzer
+
+analysis = InvoiceAnalyzer(GeminiProvider(), db_tool, market_tool).analyze(extraction)
+analysis.confidence_score   # 0–100
+analysis.anomaly_flags      # list[AnomalyFlag]
+analysis.summary            # plain-text auditor summary
+```
+
+## Gemini API Calls
+
+| Call | Input | Output |
+|---|---|---|
+| Extraction (image) | bytes + MIME type | `InvoiceExtraction` |
+| Extraction (PDF) | bytes — File API upload/delete | `InvoiceExtraction` |
+| Anomaly analysis | invoice JSON + signal statements | `InvoiceAnalysis` |
 
 ## Architecture
 
-- **`llm/`** — plug-in-play provider abstraction; swap models by subclassing `LLMProvider`; Gemini wired up by default
-- **`schemas/`** — Pydantic models define the output shape; structured, typed results guaranteed
-- **`extraction/`** — orchestrates provider + schema into a typed result; one extractor per document type
-- **`analysis/`** — aggregates extraction output with DB history + market prices; single LLM call produces typed anomaly report with confidence score
-- **`signals/`** — deterministic price/anomaly signal computation; pure Python math on tool outputs before LLM synthesis
-- **`prompts.py`** — single source of truth for all prompt strings
-
-## Setup
-
-```bash
-cp .env.example .env   # set GEMINI_API_KEY
-uv sync
-python scripts/test_invoice_extraction.py <path/to/invoice.pdf>
-python scripts/test_invoice_analysis.py <path/to/invoice.pdf>
-```
+- **`llm/`** — `LLMProvider` abstraction; Gemini default, swappable
+- **`schemas/`** — all Pydantic models
+- **`extraction/`** — document → `InvoiceExtraction`
+- **`signals/`** — deterministic math on tool data → `PriceSignal` list (no LLM involved)
+- **`analysis/`** — signals + LLM → `InvoiceAnalysis` with `confidence_score`
+- **`tools/`** — `SqlDatabaseTool`, `MarketDataTool` interfaces (stubs, implement to enable analysis)
