@@ -4,9 +4,12 @@ import json
 from datetime import date, timedelta
 
 from ..llm.base import LLMProvider
+from ..negotiation.agent import NegotiationAgent
 from ..prompts import INVOICE_ANALYSIS_PROMPT
+from ..routing.decision import decide
 from ..schemas.analysis import InvoiceAnalysis
 from ..schemas.invoice import InvoiceExtraction
+from ..schemas.result import InvoiceAction, InvoiceResult
 from ..signals.compute import compute_signals
 from ..signals.schema import PriceSignal
 from ..tools.market_data import MarketDataTool
@@ -29,6 +32,15 @@ class InvoiceAnalyzer:
         self.sql = sql_tool
         self.market = market_tool
         self.history_lookback_days = history_lookback_days
+
+    def process(self, extraction: InvoiceExtraction) -> InvoiceResult:
+        """Full pipeline: analyze → route → optionally draft negotiation email."""
+        analysis = self.analyze(extraction)
+        decision = decide(analysis)
+        draft = None
+        if decision.action == InvoiceAction.ESCALATE_NEGOTIATION:
+            draft = NegotiationAgent(self.provider).draft_email(analysis)
+        return InvoiceResult(analysis=analysis, decision=decision, negotiation_draft=draft)
 
     def analyze(self, extraction: InvoiceExtraction) -> InvoiceAnalysis:
         assert isinstance(extraction, InvoiceExtraction), f"Expected InvoiceExtraction, got {type(extraction)}"

@@ -32,3 +32,30 @@ Rules:
 
 Return structured JSON matching the schema exactly.
 """.strip()
+
+NEGOTIATION_PROMPT = """
+You are a professional procurement manager drafting a renegotiation email to a vendor.
+
+## VENDOR
+{vendor_name}
+
+## INVOICE
+{invoice_number}
+
+## AUDITOR SUMMARY
+{summary}
+
+## ANOMALY FLAGS
+{anomaly_flags}
+
+## ANOMALOUS PRICE SIGNALS
+{signals}
+
+## TASK
+Draft a concise, professional email requesting a price review or correction.
+- Be factual and reference specific anomalies.
+- Maintain a firm but constructive tone.
+- Populate `key_points` with the 2-5 most important issues to raise.
+
+Return structured JSON matching the schema exactly.
+""".strip()
