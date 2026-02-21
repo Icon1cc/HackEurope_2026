@@ -1,0 +1,11 @@
+[project]
+name = "data-sourcing"
+version = "0.1.0"
+description = "Real-time market data sourcing for B2B procurement / BOM / invoice price validation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "playwright>=1.44",
+]
