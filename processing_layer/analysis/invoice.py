@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+import json
+from datetime import date, timedelta
+
+from ..llm.base import LLMProvider
+from ..prompts import INVOICE_ANALYSIS_PROMPT
+from ..schemas.analysis import InvoiceAnalysis
+from ..schemas.invoice import InvoiceExtraction
+from ..signals.compute import compute_signals
+from ..signals.schema import PriceSignal
+from ..tools.market_data import MarketDataTool
+from ..tools.sql_db import SqlDatabaseTool
+
+
+class InvoiceAnalyzer:
+    def __init__(
+        self,
+        provider: LLMProvider,
+        sql_tool: SqlDatabaseTool,
+        market_tool: MarketDataTool,
+        history_lookback_days: int = 365,
+    ):
+        assert isinstance(provider, LLMProvider), f"provider must be LLMProvider, got {type(provider)}"
+        assert isinstance(sql_tool, SqlDatabaseTool), f"sql_tool must be SqlDatabaseTool, got {type(sql_tool)}"
+        assert isinstance(market_tool, MarketDataTool), f"market_tool must be MarketDataTool, got {type(market_tool)}"
+        assert history_lookback_days > 0, "history_lookback_days must be positive"
+        self.provider = provider
+        self.sql = sql_tool
+        self.market = market_tool
+        self.history_lookback_days = history_lookback_days
+
+    def analyze(self, extraction: InvoiceExtraction) -> InvoiceAnalysis:
+        assert isinstance(extraction, InvoiceExtraction), f"Expected InvoiceExtraction, got {type(extraction)}"
+        context = self._gather_context(extraction)
+        signals = compute_signals(extraction, context)
+        prompt = self._build_prompt(extraction, signals)
+        result = self.provider.generate_structured(prompt, InvoiceAnalysis)
+        assert isinstance(result, InvoiceAnalysis), f"Unexpected result type: {type(result)}"
+        # Inject deterministic signals — these cannot be produced/overwritten by the LLM
+        return result.model_copy(update={"signals": signals})
+
+    def _gather_context(self, extraction: InvoiceExtraction) -> dict:
+        context: dict = {}
+
+        if extraction.vendor_name and extraction.invoice_date:
+            date_end = extraction.invoice_date
+            date_start = _shift_date(date_end, -self.history_lookback_days)
+            # TODO: return shape depends on SqlDatabaseTool implementation
+            # expected: list of dicts each representing a past invoice with keys:
+            # invoice_number, invoice_date, total, line_items (list of {description, unit_price, quantity})
+            context["invoice_history"] = self.sql.fetch_invoice_history(
+                vendor=extraction.vendor_name,
+                date_range=(date_start, date_end),
+            )
+
+        context["market_prices"] = {}
+        for item in extraction.line_items:
+            symbol = _description_to_symbol(item.description)
+            if symbol:
+                # TODO: return shape depends on MarketDataTool implementation
+                # expected: dict with at minimum {"price": float, "currency": str, "timestamp": str}
+                context["market_prices"][item.description] = self.market.get_spot_price(symbol)
+
+        return context
+
+    def _build_prompt(self, extraction: InvoiceExtraction, signals: list[PriceSignal]) -> str:
+        signals_text = "\n".join(f"- {s.statement}" for s in signals) or "No quantitative signals available."
+        anomalous_text = "\n".join(f"- {s.statement}" for s in signals if s.is_anomalous) or "None."
+        return INVOICE_ANALYSIS_PROMPT.format(
+            invoice_json=extraction.model_dump_json(indent=2),
+            signals_text=signals_text,
+            anomalous_signals_text=anomalous_text,
+        )
+
+
+def _shift_date(iso_date: str, delta_days: int) -> str:
+    """Shift ISO date string by delta_days. Raises ValueError immediately on malformed input."""
+    d = date.fromisoformat(iso_date)
+    return (d + timedelta(days=delta_days)).isoformat()
+
+
+def _description_to_symbol(description: str) -> str | None:
+    """
+    Map a line item description to a commodity symbol for MarketDataTool.
+    TODO: implement proper lookup (dict-based or fuzzy match) once tools are live.
+    Currently returns None for all inputs — market lookup is skipped.
+    """
+    return None
