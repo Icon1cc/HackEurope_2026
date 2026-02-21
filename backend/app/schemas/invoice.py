@@ -1,7 +1,10 @@
 from uuid import UUID
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from pydantic import BaseModel, Field
+
+from app.schemas.item import ItemResponse
 
 
 class InvoiceCreate(BaseModel):
@@ -25,6 +28,16 @@ class InvoiceResponse(BaseModel):
     id: UUID
     vendor_id: UUID | None
     client_id: UUID | None
+    invoice_number: str | None = None
+    due_date: datetime | None = None
+    vendor_name: str | None = None
+    vendor_address: str | None = None
+    client_name: str | None = None
+    client_address: str | None = None
+    subtotal: Decimal | None = None
+    tax: Decimal | None = None
+    total: Decimal | None = None
+    currency: str | None = None
     raw_file_url: str | None
     extracted_data: dict[str, Any] | None
     anomalies: list[dict[str, Any]] | None
@@ -34,6 +47,7 @@ class InvoiceResponse(BaseModel):
     claude_summary: str | None
     negotiation_email: str | None
     auto_approved: bool
+    items: list[ItemResponse] = []
     created_at: datetime
     updated_at: datetime
 

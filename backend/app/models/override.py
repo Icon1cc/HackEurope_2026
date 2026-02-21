@@ -19,8 +19,5 @@ class Override(Base):
     agreed = Column(Boolean, nullable=True)
     override_reason = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-
-    # One override → one invoice
     invoice = relationship("Invoice", back_populates="override")
-    # Many overrides → one vendor
     vendor = relationship("Vendor", back_populates="overrides")
