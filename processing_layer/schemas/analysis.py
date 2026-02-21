@@ -40,13 +40,6 @@ class InvoiceAnalysis(BaseModel):
             "Injected post-generation — not produced by the LLM."
         ),
     )
-    confidence_score: int = Field(
-        description=(
-            "Business-as-usual confidence score 0–100. "
-            "100 = invoice looks completely normal, 0 = highly suspicious. "
-            "TODO: derive from weighted signal criteria once scoring rules are defined."
-        )
-    )
     is_duplicate: bool = Field(description="True if this invoice appears to be a duplicate of a prior invoice.")
     duplicate_evidence: str | None = Field(
         description="Evidence of duplication, e.g. 'Found invoice #X123 on 2025-01-10 same vendor, same total'. Null if not duplicate."

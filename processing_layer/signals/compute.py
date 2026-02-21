@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..constants import ANOMALY_THRESHOLD_PCT
+from ..constants import PRICE_TOLERANCE_PCT
 from ..schemas.invoice import InvoiceExtraction
 from .schema import PriceSignal
 

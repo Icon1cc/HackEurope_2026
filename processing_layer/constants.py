@@ -1,2 +1,6 @@
-ANOMALY_THRESHOLD_PCT = 15.0       # signal deviation above this is flagged as anomalous
-ESCALATION_CONFIDENCE_THRESHOLD = 60  # confidence_score below this triggers negotiation escalation
+PRICE_TOLERANCE_PCT = 15.0   # within this % of reference price = aligned
+
+APPROVAL_THRESHOLD = 80      # score >= this → APPROVED
+ESCALATION_THRESHOLD = 40    # score < this → ESCALATE_NEGOTIATION; between → HUMAN_REVIEW
+
+DEFAULT_GRADER_MODEL = "gemini-3-flash-preview"
