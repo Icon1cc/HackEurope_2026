@@ -2,3 +2,6 @@
 .playwright-mcp/*
 .env
 .ipynb*
+__pycache__/
+*.pyc
+.venv/
