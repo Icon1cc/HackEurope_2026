@@ -5,7 +5,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from .invoice import InvoiceExtraction, LineItem
-from ..signals.schema import PriceSignal
+from .signals import PriceSignal
 
 
 class AnomalySeverity(str, Enum):
@@ -39,13 +39,6 @@ class InvoiceAnalysis(BaseModel):
             "Deterministic quantitative signals computed before LLM synthesis. "
             "Injected post-generation — not produced by the LLM."
         ),
-    )
-    confidence_score: int = Field(
-        description=(
-            "Business-as-usual confidence score 0–100. "
-            "100 = invoice looks completely normal, 0 = highly suspicious. "
-            "TODO: derive from weighted signal criteria once scoring rules are defined."
-        )
     )
     is_duplicate: bool = Field(description="True if this invoice appears to be a duplicate of a prior invoice.")
     duplicate_evidence: str | None = Field(

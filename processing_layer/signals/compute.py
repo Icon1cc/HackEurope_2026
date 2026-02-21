@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+from ..constants import PRICE_TOLERANCE_PCT
 from ..schemas.invoice import InvoiceExtraction
-from .schema import PriceSignal
-
-ANOMALY_THRESHOLD_PCT = 15.0
+from ..schemas.signals import PriceSignal
 
 
 def compute_signals(extraction: InvoiceExtraction, context: dict) -> list[PriceSignal]:

@@ -6,8 +6,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from .base import LLMProvider
-
-DEFAULT_MODEL = "gemini-3-flash-preview"
+from ..constants import DEFAULT_MODEL
 
 SUPPORTED_IMAGE_MIME_TYPES = frozenset({
     "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"
