@@ -314,6 +314,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "google-genai" },
     { name = "greenlet" },
+    { name = "httpx" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -322,6 +323,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "requests" },
     { name = "sqlalchemy" },
+    { name = "stripe" },
     { name = "uvicorn" },
 ]
 
@@ -343,6 +345,7 @@ requires-dist = [
     { name = "fiftyone", marker = "extra == 'testing'" },
     { name = "google-genai", specifier = ">=1.0" },
     { name = "greenlet", specifier = ">=3.3.2" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "huggingface-hub", marker = "extra == 'testing'", specifier = ">=0.20.0" },
     { name = "jupyterlab", marker = "extra == 'testing'" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
@@ -355,6 +358,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "sqlalchemy", specifier = ">=2.0.46" },
+    { name = "stripe", specifier = ">=0.0.0" },
     { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 provides-extras = ["testing"]
@@ -3776,6 +3780,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/08/30/e183b75fbde7ce13c22ff4348fc5c5f41d277d56bb079eda00cfe79ed958/strawberry_graphql-0.291.3.tar.gz", hash = "sha256:81414e99bf84b08df9dae1709798a3d31a6bfe40635b58fd4b2904cd71759491", size = 217725, upload-time = "2026-02-07T08:32:04.507Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2e/5c/7841327bd5ab23cd71c74dbb42e72eb7d83f898c7be9e0908cbfcb965b00/strawberry_graphql-0.291.3-py3-none-any.whl", hash = "sha256:ca0a2fdcaf631d05363d3a53390dc6829e7bd5948579ff185b6e4e1478687f95", size = 316383, upload-time = "2026-02-07T08:32:06.959Z" },
+]
+
+[[package]]
+name = "stripe"
+version = "14.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/49/67/8a38222a57fc2ba359c4dcb66528d94c00d803c7fde8f8d8470ad6bdccbb/stripe-14.3.0.tar.gz", hash = "sha256:4c76137d741bd43e8bb433a596c198ca20f4cdf17a8fe04604faf37c74b01978", size = 1463618, upload-time = "2026-01-28T21:20:29.856Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/4b/0b7d5920f2be5e42d72bdfc44a9fae57b422668bfc8dacdf2f74886f6daa/stripe-14.3.0-py3-none-any.whl", hash = "sha256:3e36b68b256c8970e99b703e195d947e2a2919095758788c7074ac4485ac255e", size = 2106980, upload-time = "2026-01-28T21:20:27.566Z" },
 ]
 
 [[package]]
