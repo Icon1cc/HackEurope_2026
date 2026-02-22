@@ -65,13 +65,33 @@ Schemas   Business    DB queries
 | `HISTORICAL_PRICE_CONSISTENT` | 27 pts | per line item | `JUDGE_HISTORICAL_PRICE` |
 | `COMPETITOR_PRICE_ALIGNED` | 26 pts | per line item | `JUDGE_COMPETITOR_PRICE` |
 
-**Current state:**
+**Current state (standalone processing_layer module):**
 - Extraction: fully implemented
-- Backend `/api/v1/extraction/` now performs two Gemini calls: first-pass extraction, then second-pass risk review using vendor invoices + `cloud_pricing` context, persisting data to `vendors`/`invoices`/`items`.
-- Rubric schemas + scoring + criteria + routing: implemented; `evaluate_criterion` now supports deterministic evaluation from extraction+signals context (competitor criterion remains unavailable without source data).
-- Analysis + negotiation: scaffolded end-to-end
-- `signals/compute.py`: stub — raises `NotImplementedError` pending tool return shapes
-- `tools/` (`SqlDatabaseTool`, `MarketDataTool`): stubs — raise `NotImplementedError`
+- Rubric schemas + scoring + criteria + routing: implemented; `evaluate_criterion` supports deterministic signal-based evaluation (competitor criterion unavailable without source data)
+- Analysis + negotiation: scaffolded end-to-end; `InvoiceAnalyzer` orchestrates full pipeline but is **bypassed** by the backend extraction endpoint (backend has its own inline pipeline)
+- `signals/compute.py`: stub — raises `NotImplementedError` (backend computes signals inline)
+- `tools/` (`SqlDatabaseTool`, `MarketDataTool`): stubs — backend uses SQLAlchemy repos directly
+- `NegotiationAgent`: fully implemented; not yet wired to any backend endpoint
+
+### Processing Layer Integration (backend `/api/v1/extraction/`)
+
+The backend extraction endpoint uses `backend/processing_layer/` components directly but **does NOT use `InvoiceAnalyzer`** as orchestrator — it has its own 12-step inline pipeline:
+
+| Step | Component used |
+|---|---|
+| 1. File validation | MIME type check inline |
+| 2. Gemini call #1 | `extraction/invoice.py:InvoiceExtractor` → `InvoiceExtraction` |
+| 3. Vendor upsert | SQLAlchemy repo (not tool stubs) |
+| 4–5. Invoice + Items create + commit | ORM direct |
+| 6. Context build | DB queries (prior invoices + CloudPricing) |
+| 7. Signal computation | **Inline in extraction.py** — `compute_signals()` from processing_layer NOT used |
+| 8. Rubric evaluation | `rubric/evaluator.py:evaluate_rubric()` → `InvoiceRubric` |
+| 9. Gemini call #2 | `llm/gemini.py:GeminiProvider.generate_structured()` → `InvoiceAnalysis` |
+| 10. Routing | `routing/decision.py:decide()` → `InvoiceDecision` |
+| 11. DB update | Attach analysis + rubric + status; commit |
+| 12. Response | `{vendor, invoice, extraction, vendor_context, second_pass}` |
+
+**Bypassed / not wired:** `InvoiceAnalyzer`, `compute_signals()`, `SqlDatabaseTool`, `MarketDataTool`, `NegotiationAgent`
 
 ## Common Commands
 

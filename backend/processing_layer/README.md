@@ -58,9 +58,9 @@ Invoice document (PDF / image)
 3. SIGNAL COMPUTATION  ──────────────────────────────────────────────────
    Deterministic Python math on context → human-readable price signals
    In:  InvoiceExtraction + dict (context)
-   Out: signals/schema.py → list[PriceSignal]  (statement, is_anomalous, SignalType, SignalScope)
-   Key: signals/compute.py:compute_signals()   ← stub
-        signals/schema.py
+   Out: schemas/signals.py → list[PriceSignal]  (statement, is_anomalous, SignalType, SignalScope)
+   Key: signals/compute.py:compute_signals()   ← stub (backend computes signals inline)
+        schemas/signals.py
         constants.py:PRICE_TOLERANCE_PCT
 
         │
@@ -151,3 +151,22 @@ processing_layer/
     prompts.py          All LLM prompts (extraction, analysis, judge × 4, negotiation)
     constants.py        APPROVAL_THRESHOLD=80, ESCALATION_THRESHOLD=40, PRICE_TOLERANCE_PCT=15
 ```
+
+---
+
+## Backend Integration Status
+
+This module lives at `backend/processing_layer/`. The backend extraction endpoint (`POST /api/v1/extraction/`) **does NOT use `InvoiceAnalyzer`** as orchestrator — it has its own inline pipeline.
+
+| Component | Status in backend |
+|---|---|
+| `extraction/invoice.py:InvoiceExtractor` | ✅ Used — Gemini call #1 |
+| `rubric/evaluator.py:evaluate_rubric()` | ✅ Used — signals-based, fully implemented |
+| `routing/decision.py:decide()` | ✅ Used |
+| `llm/gemini.py:GeminiProvider` | ✅ Used — both LLM calls |
+| `schemas/*` | ✅ Used |
+| `analysis/invoice.py:InvoiceAnalyzer` | ❌ Bypassed — backend has own pipeline |
+| `signals/compute.py:compute_signals()` | ❌ Bypassed — backend computes signals inline |
+| `tools/SqlDatabaseTool` | ❌ Unused — backend uses SQLAlchemy repos |
+| `tools/MarketDataTool` | ❌ Unused |
+| `negotiation/agent.py:NegotiationAgent` | ⚠️ Implemented, not yet wired to any endpoint |

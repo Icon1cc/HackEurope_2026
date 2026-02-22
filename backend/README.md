@@ -9,13 +9,13 @@ This README contains the exact commands used to run and debug the backend in thi
 
 ## Important Paths
 
-- Repo root: `/Users/icon1c/Desktop/HackEurope_2026`
+- Repo root: `<repo-root>`
 - Backend env file (used by settings): `backend/.env`
 
 ## 1. Run Postgres Only (Docker)
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose up -d postgres
 docker compose ps postgres
 docker compose logs -f postgres
@@ -28,7 +28,7 @@ Expected mapping:
 ## 2. Run Backend + Postgres (Docker, Recommended)
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose up -d --build backend
 docker compose ps
 docker compose logs -f backend
@@ -48,7 +48,7 @@ API docs:
 Start Postgres:
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose up -d postgres
 ```
 
@@ -63,7 +63,7 @@ GEMINI_API_KEY=your_gemini_api_key
 Then run backend locally:
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026/backend
+cd <repo-root>/backend
 uv sync
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -72,7 +72,7 @@ uvicorn app.main:app --reload
 If you are not using `uv`:
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026/backend
+cd <repo-root>/backend
 python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -109,21 +109,34 @@ If the extension itself runs inside Docker on the same network:
 If `psql` is not installed on your Mac, use the container client:
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose exec postgres psql -U postgres -d hackeurope
 ```
 
 ## 6. Useful Debug Commands We Used
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose ps
 docker compose ps postgres
 docker compose logs --tail=200 backend
 docker compose logs -f postgres
 ```
 
-## 7. Common Errors and Fixes
+## 7. API Endpoints
+
+| Route group | Base path | Key endpoint |
+|---|---|---|
+| Health | `/health` | `GET /health` |
+| Extraction | `/api/v1/extraction` | `POST /api/v1/extraction/` — upload invoice PDF/image, runs full 12-step pipeline (extract → signals → rubric → LLM analysis → route → persist) |
+| Pricing | `/api/v1/pricing` | `POST /api/v1/pricing/sync` — sync cloud pricing from AWS/Azure/GCP APIs |
+| Vendors | `/api/v1/vendors` | CRUD for vendor records |
+| Invoices | `/api/v1/invoices` | CRUD + list invoices |
+| Market data | `/api/v1/market-data` | Query aggregated market prices |
+
+Full interactive docs: `http://localhost:8000/docs`
+
+## 8. Common Errors and Fixes
 
 - `connection to server at "127.0.0.1", port 5432 failed`:
   - Use port `5433` for host-machine connections.
@@ -140,26 +153,26 @@ docker compose logs -f postgres
 - `Missing Gemini API key`:
   - Set `GEMINI_API_KEY` (preferred) or `GCP_API_KEY` in `backend/.env`.
 
-## 8. Stop / Reset
+## 9. Stop / Reset
 
 Stop services:
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose stop backend postgres
 ```
 
 Stop and remove containers:
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose down
 ```
 
 Reset database volume (destructive):
 
 ```bash
-cd /Users/icon1c/Desktop/HackEurope_2026
+cd <repo-root>
 docker compose down -v
 docker compose up -d postgres
 ```
