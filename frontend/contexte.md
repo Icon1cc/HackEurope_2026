@@ -1,4 +1,4 @@
-# InvoiceGuard — Contexte Projet
+# FairPay Agent — Contexte Projet
 
 > Ce fichier est la source de vérité pour toute IA travaillant sur ce projet.
 > Il doit être mis à jour à chaque changement structurel significatif.
@@ -8,7 +8,7 @@
 
 ## Vue d'ensemble
 
-**InvoiceGuard** est une application web de traitement de factures par IA et de détection de fraude, destinée aux équipes de comptabilité fournisseur (Accounts Payable) des entreprises.
+**FairPay Agent** est une application web de traitement de factures par IA et de détection de fraude, destinée aux équipes de comptabilité fournisseur (Accounts Payable) des entreprises.
 
 **Stack technique :**
 - React 18 + TypeScript
@@ -26,11 +26,11 @@
 ## Structure du projet
 
 ```
-InvoiceGuard Web App/
+FairPay Agent Web App/
 ├── index.html                        # Entrée HTML (favicon lié à logo.svg)
 ├── public/
 │   └── logo.svg                      # Logo officiel et favicon
-├── package.json                      # name: "invoiceguard", v1.0.0
+├── package.json                      # name: "FairPay Agent", v1.0.0
 ├── vite.config.ts                    # Build prod optimisé, port 3000
 ├── tsconfig.json                     # Config TypeScript (strict)
 ├── tsconfig.node.json                # Config TS pour vite.config
@@ -174,7 +174,7 @@ Fichier centralisé partagé par `Dashboard.tsx` et `ReviewDetail.tsx`.
 ### i18n global (`src/app/i18n/AppLanguageProvider.tsx`)
 
 - Fournit la langue active à toute l'app (`useAppLanguage`)
-- Synchronise automatiquement via l'événement `invoiceguard:settings-updated`
+- Synchronise automatiquement via l'événement `FairPay Agent:settings-updated`
 - Met à jour `document.documentElement.lang`
 
 ### Trust Score → couleur (interpolation lisse)

@@ -1,11 +1,11 @@
-# Logo Generation Prompt — InvoiceGuard
+# Logo Generation Prompt — FairPay Agent
 
-This prompt is designed to generate a logo that represents **InvoiceGuard**: an AI-powered, autonomous fraud detection and invoice processing application. It follows the project's minimalist, dark, and tech-forward design system.
+This prompt is designed to generate a logo that represents **FairPay Agent**: an AI-powered, autonomous fraud detection and invoice processing application. It follows the project's minimalist, dark, and tech-forward design system.
 
 ## Nano Banana Prompt
 
 > **Prompt:**
-> Minimalist professional vector logo icon for a high-tech AI cybersecurity app named "InvoiceGuard". The symbol features a sleek, abstract geometric shield integrated with a digital pulse or a stylized document scanning line. 
+> Minimalist professional vector logo icon for a high-tech AI cybersecurity app named "FairPay Agent". The symbol features a sleek, abstract geometric shield integrated with a digital pulse or a stylized document scanning line. 
 > 
 > **Style:** Ultra-minimalist, flat design, sharp precision, tech-forward.
 > **Colors:** Electric Cyan (#00F2FF) on a deep matte black background. 

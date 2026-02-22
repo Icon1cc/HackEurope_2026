@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**InvoiceGuard** — B2B invoice anomaly detection platform. Ingests cloud vendor invoices, extracts data via LLM (Gemini), compares against real-time market pricing, and flags overcharges with rubric-based confidence scoring.
+**FairPay Agent** — B2B invoice anomaly detection platform. Ingests cloud vendor invoices, extracts data via LLM (Gemini), compares against real-time market pricing, and flags overcharges with rubric-based confidence scoring.
 
 ## Architecture
 
