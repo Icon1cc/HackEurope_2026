@@ -5,6 +5,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
 import {
+  decimalToNumber,
   dispatchInvoicesUpdatedEvent,
   fetchInvoiceById,
   formatCurrencyValue,
@@ -22,7 +23,15 @@ import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 interface LineItemView {
   description: string;
+  quantity: string;
+  unitPrice: string;
   amount: string;
+}
+
+function formatQuantity(value: string | number | null | undefined): string {
+  const n = decimalToNumber(value);
+  if (n === null) return '';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
 }
 
 interface ReviewViewModel {
@@ -58,6 +67,8 @@ function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
   if (invoice.items.length > 0) {
     return invoice.items.map((item) => ({
       description: item.description || 'Line item',
+      quantity: formatQuantity(item.quantity),
+      unitPrice: formatCurrencyValue(item.unit_price, invoice.currency),
       amount: formatCurrencyValue(item.total_price, invoice.currency),
     }));
   }
@@ -74,8 +85,16 @@ function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
         const totalPrice = typeof item.total_price === 'number' || typeof item.total_price === 'string'
           ? item.total_price
           : null;
+        const unitPrice = typeof item.unit_price === 'number' || typeof item.unit_price === 'string'
+          ? item.unit_price
+          : null;
+        const qty = typeof item.quantity === 'number' || typeof item.quantity === 'string'
+          ? item.quantity
+          : null;
         return {
           description,
+          quantity: formatQuantity(qty),
+          unitPrice: formatCurrencyValue(unitPrice, invoice.currency),
           amount: formatCurrencyValue(totalPrice, invoice.currency),
         };
       })
@@ -89,6 +108,8 @@ function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
   return [
     {
       description: 'Line item',
+      quantity: '',
+      unitPrice: '',
       amount: formatCurrencyValue(invoice.total, invoice.currency),
     },
   ];
@@ -148,7 +169,9 @@ function toReviewViewModel(invoice: InvoiceApiResponse): ReviewViewModel {
     contactEmail: buildFallbackEmail(vendorName),
     reasons: toLocalizedReasons(reasons),
     emailDraft: isReview
-      ? buildEmailDraft(invoiceNumber, vendorName, reasons)
+      ? (invoice.negotiation_email
+          ? { en: invoice.negotiation_email, fr: invoice.negotiation_email, de: invoice.negotiation_email }
+          : buildEmailDraft(invoiceNumber, vendorName, reasons))
       : {
           en: 'Draft not available for processed invoices.',
           fr: 'Brouillon non disponible pour les factures traitées.',
@@ -223,7 +246,9 @@ export default function ReviewDetail() {
       invoiceNumber: 'Numéro de facture',
       date: 'Date',
       description: 'Description',
-      amount: 'Montant',
+      quantity: 'Qté',
+      unitPrice: 'Prix unitaire',
+      amount: 'Total',
       professionalServices: 'Services Professionnels',
       platformSubscription: 'Abonnement Plateforme',
       included: 'Inclus',
@@ -260,7 +285,9 @@ export default function ReviewDetail() {
       invoiceNumber: 'Invoice Number',
       date: 'Date',
       description: 'Description',
-      amount: 'Amount',
+      quantity: 'Qty',
+      unitPrice: 'Unit Price',
+      amount: 'Total',
       professionalServices: 'Professional Services',
       platformSubscription: 'Platform Subscription',
       included: 'Included',
@@ -297,7 +324,9 @@ export default function ReviewDetail() {
       invoiceNumber: 'Rechnungsnummer',
       date: 'Datum',
       description: 'Beschreibung',
-      amount: 'Betrag',
+      quantity: 'Menge',
+      unitPrice: 'Stückpreis',
+      amount: 'Total',
       professionalServices: 'Professionelle Dienstleistungen',
       platformSubscription: 'Plattform-Abonnement',
       included: 'Inklusive',
@@ -563,6 +592,8 @@ export default function ReviewDetail() {
                     <thead>
                       <tr className="border-b-2 border-gray-300">
                         <th className="text-left py-3 text-sm text-gray-700 font-bold">{copy.description}</th>
+                        <th className="text-right py-3 text-sm text-gray-700 font-bold">{copy.quantity}</th>
+                        <th className="text-right py-3 text-sm text-gray-700 font-bold">{copy.unitPrice}</th>
                         <th className="text-right py-3 text-sm text-gray-700 font-bold">{copy.amount}</th>
                       </tr>
                     </thead>
@@ -570,6 +601,8 @@ export default function ReviewDetail() {
                       {review.lineItems.map((lineItem, index) => (
                         <tr key={`${review.id}-${index}`}>
                           <td className="py-3 text-gray-900">{lineItem.description}</td>
+                          <td className="text-right text-gray-900">{lineItem.quantity}</td>
+                          <td className="text-right text-gray-900">{lineItem.unitPrice}</td>
                           <td className="text-right text-gray-900 font-semibold">{lineItem.amount}</td>
                         </tr>
                       ))}
