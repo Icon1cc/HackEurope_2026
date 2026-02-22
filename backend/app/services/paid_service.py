@@ -14,6 +14,11 @@ _client: AsyncPaid | None = None
 AGENT_PRODUCT_ID = "invoice_guard_001"
 
 
+def get_paid_client() -> AsyncPaid | None:
+    """Return the shared Paid.ai client (or None if not initialised)."""
+    return _client
+
+
 def init_paid() -> None:
     """Initialise the Paid.ai async client (called once at startup)."""
     global _client

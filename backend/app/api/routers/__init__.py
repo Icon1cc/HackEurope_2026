@@ -12,6 +12,7 @@ from app.api.routers.auth import router as auth_router
 from app.api.routers.approve import router as approve_router
 from app.api.routers.billing import router as billing_router
 from app.api.routers.webhooks import router as webhooks_router
+from app.api.routers.paid_blocks import router as paid_blocks_router
 
 router = APIRouter(prefix="/api/v1")
 
@@ -28,3 +29,4 @@ router.include_router(market_data_router)
 router.include_router(items_router)
 router.include_router(pricing_router)
 router.include_router(extraction_router)
+router.include_router(paid_blocks_router)

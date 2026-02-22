@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@paid-ai/paid-node": "^0.5.1"
+  }
+}
