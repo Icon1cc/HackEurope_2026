@@ -163,7 +163,7 @@ docker-compose down -v        # Reset everything
 
 Each component has a `.env.example`. Key variables:
 
-- **Backend:** `DATABASE_URL` (asyncpg connection string), `GEMINI_API_KEY` (preferred) / `GCP_API_KEY` (fallback), `ANTHROPIC_API_KEY` (Claude reasoning), `REASONING_PROVIDER` (default: `claude`), `INFRACOST_API_KEY`, `PRICING_MAX_RECORDS`
+- **Backend:** `DATABASE_URL` (asyncpg connection string), `GEMINI_API_KEY` (preferred) / `GCP_API_KEY` (fallback), `ANTHROPIC_API_KEY` (Claude reasoning), `REASONING_PROVIDER` (default: `claude`), `INFRACOST_API_KEY`, `PRICING_MAX_RECORDS`, `PAID_API_KEY` (Paid.ai value attribution, optional — tracking silently disabled if unset)
 - **Frontend:** `VITE_API_BASE_URL`, `VITE_ENABLE_AI_CHAT`
 - **Processing:** `GEMINI_API_KEY`
 - **Data Sourcing:** `COMMODITY_PRICE_API_KEY`
