@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+
 from app.models.invoice import Invoice
 from app.services.stripe_service import execute_vendor_payment
 
-router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
 @router.post("/{invoice_id}/approve")

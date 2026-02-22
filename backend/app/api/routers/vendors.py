@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.vendor import VendorService
 from app.schemas.vendor import VendorCreate, VendorUpdate, VendorResponse, VendorSummary
-from app.core.dependencies import get_vendor_service, get_current_user
+from app.core.dependencies import get_vendor_service
 
-router = APIRouter(prefix="/vendors", tags=["vendors"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/vendors", tags=["vendors"])
 
 
 @router.get("/", response_model=list[VendorResponse])

@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.payment import PaymentService
 from app.schemas.payment import PaymentCreate, PaymentUpdate, PaymentResponse
-from app.core.dependencies import get_payment_service, get_current_user
+from app.core.dependencies import get_payment_service
 
-router = APIRouter(prefix="/payments", tags=["payments"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/payments", tags=["payments"])
 
 
 @router.get("/", response_model=list[PaymentResponse])

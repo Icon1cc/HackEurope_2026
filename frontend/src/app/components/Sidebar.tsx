@@ -4,7 +4,6 @@ import { LayoutDashboard, Users, Settings, Menu, X, LogOut, ChevronUp, ChevronRi
 import { loadAppSettings } from '../data/appSettings';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import { fetchInvoiceById, fetchVendorById } from '../api/backend';
-import { useAuth } from '../auth/AuthContext';
 
 const navItems = [
   { path: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
@@ -31,7 +30,6 @@ export function Sidebar() {
   const language = useAppLanguage();
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
   const [activeVendor, setActiveVendor] = useState<{ id: string; name: string } | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
@@ -289,7 +287,6 @@ export function Sidebar() {
                   onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                   onClick={() => {
-                    logout();
                     setIsUserMenuOpen(false);
                     setIsOpen(false);
                     navigate('/');

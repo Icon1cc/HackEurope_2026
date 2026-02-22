@@ -1,25 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock } from 'lucide-react';
 import { VercelBackground } from '../components/VercelBackground';
 import { Footer } from '../components/Footer';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
-import { useAuth } from '../auth/AuthContext';
 
 export default function SignIn() {
   const language = useAppLanguage();
   const navigate = useNavigate();
-  const { login, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
   const copy = {
     fr: {
       tagline: 'Protection IA autonome pour la comptabilité fournisseurs',
@@ -53,18 +45,10 @@ export default function SignIn() {
     },
   }[language];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setIsSubmitting(true);
-    try {
-      await login(email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setIsSubmitting(false);
-    }
+    void navigate('/dashboard');
   };
 
   return (

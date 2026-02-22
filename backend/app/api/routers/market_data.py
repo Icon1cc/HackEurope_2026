@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.market_data import MarketDataService
 from app.schemas.market_data import MarketDataCreate, MarketDataUpdate, MarketDataResponse
-from app.core.dependencies import get_market_data_service, get_current_user
+from app.core.dependencies import get_market_data_service
 
-router = APIRouter(prefix="/market-data", tags=["market_data"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/market-data", tags=["market_data"])
 
 
 @router.get("/", response_model=list[MarketDataResponse])

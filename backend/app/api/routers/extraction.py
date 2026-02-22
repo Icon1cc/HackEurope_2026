@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
 from app.models.cloud_pricing import CloudPricing
 from app.models.invoice import Invoice
 from app.models.item import Item
@@ -29,13 +28,12 @@ from processing_layer.schemas.analysis import InvoiceAnalysis
 from processing_layer.llm.factory import get_provider
 from processing_layer.schemas.invoice import InvoiceExtraction
 from processing_layer.schemas.result import InvoiceAction
-from app.core.dependencies import get_current_user
 from app.services.stripe_service import execute_vendor_payment
 from processing_layer.signals.compute import compute_signals
 
 load_dotenv()
 
-router = APIRouter(prefix="/extraction", tags=["extraction"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/extraction", tags=["extraction"])
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=4)

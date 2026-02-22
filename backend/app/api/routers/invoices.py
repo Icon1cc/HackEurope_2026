@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.invoice import InvoiceService
 from app.schemas.invoice import InvoiceCreate, InvoiceUpdate, InvoiceResponse
-from app.core.dependencies import get_invoice_service, get_current_user
+from app.core.dependencies import get_invoice_service
 
-router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
 @router.get("/", response_model=list[InvoiceResponse])
