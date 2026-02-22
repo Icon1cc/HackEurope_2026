@@ -85,12 +85,20 @@ def evaluate_criterion(
             and signal.is_anomalous
             for signal in signals
         )
-        fulfilled = required_fields_ok and due_date_ok and not duplicate_found
-        explanation = (
-            "All formal checks passed."
-            if fulfilled
-            else "Missing required fields, invalid due_date, or duplicate invoice number detected."
+        math_error = any(
+            isinstance(signal, PriceSignal)
+            and signal.signal_type == SignalType.MATH_INCONSISTENCY
+            and signal.is_anomalous
+            for signal in signals
         )
+        fulfilled = required_fields_ok and due_date_ok and not duplicate_found and not math_error
+        if fulfilled:
+            explanation = "All formal checks passed."
+        elif math_error:
+            math_signal = next(s for s in signals if isinstance(s, PriceSignal) and s.signal_type == SignalType.MATH_INCONSISTENCY)
+            explanation = math_signal.statement
+        else:
+            explanation = "Missing required fields, invalid due_date, or duplicate invoice number detected."
         return CriterionResult(
             criterion_id=criterion.id,
             line_item_description="invoice",

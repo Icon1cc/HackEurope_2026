@@ -99,6 +99,28 @@ def compute_signals(
                     )
                 )
 
+    if extraction.total is not None and extraction.line_items:
+        line_sum = sum(item.total_price for item in extraction.line_items)
+        tax = extraction.tax or 0.0
+        expected = line_sum + tax
+        if abs(expected - float(extraction.total)) > 0.02:
+            deviation_pct = ((float(extraction.total) - expected) / expected * 100) if expected else 0.0
+            signals.append(
+                PriceSignal(
+                    signal_type=SignalType.MATH_INCONSISTENCY,
+                    scope=SignalScope.INVOICE,
+                    invoice_value=float(extraction.total),
+                    reference_value=expected,
+                    deviation_pct=deviation_pct,
+                    statement=(
+                        f"Invoice total {float(extraction.total):.2f} does not match "
+                        f"sum of line items + tax ({expected:.2f}, diff {float(extraction.total) - expected:+.2f}). "
+                        f"Possible extraction error or undisclosed charge."
+                    ),
+                    is_anomalous=True,
+                )
+            )
+
     return signals
 
 

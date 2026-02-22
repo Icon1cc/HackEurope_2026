@@ -243,15 +243,20 @@ export function formatCurrencyValue(
     return 'N/A';
   }
   const normalizedCurrency = normalizeCurrency(currency);
+  const absVal = Math.abs(numeric);
+  const fractionDigits =
+    absVal > 0 && absVal < 0.01
+      ? Math.min(6, Math.max(2, Math.ceil(-Math.log10(absVal)) + 1))
+      : 2;
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: normalizedCurrency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
     }).format(numeric);
   } catch {
-    return `${numeric.toFixed(2)} ${normalizedCurrency}`;
+    return `${numeric.toFixed(fractionDigits)} ${normalizedCurrency}`;
   }
 }
 

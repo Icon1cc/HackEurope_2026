@@ -10,6 +10,7 @@ class SignalType(str, Enum):
     HISTORICAL_DEVIATION = "historical_deviation"
     DUPLICATE_INVOICE = "duplicate_invoice"
     VENDOR_TOTAL_DRIFT = "vendor_total_drift"
+    MATH_INCONSISTENCY = "math_inconsistency"
 
 
 class SignalScope(str, Enum):

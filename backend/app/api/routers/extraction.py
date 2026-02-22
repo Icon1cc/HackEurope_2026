@@ -45,12 +45,7 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp",
 }
 DEFAULT_VENDOR_NAME = "Unknown Vendor"
-PLACEHOLDER_VENDOR_NAMES = {
-    "cloud services provider ltd.",
-    "cloud services provider ltd",
-    "cloud services ltd.",
-    "cloud services ltd",
-}
+PLACEHOLDER_VENDOR_NAMES: set[str] = set()
 
 
 def _exception_message(exc: Exception) -> str:
@@ -513,7 +508,10 @@ def _normalize_vendor_name(vendor_name: str | None) -> str:
 
 
 def _normalize_confidence_score(value: Any) -> int:
-    numeric = _to_float(value)
-    if numeric is None:
+    if value is None:
+        return 0
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
         return 0
     return max(0, min(100, int(round(numeric))))

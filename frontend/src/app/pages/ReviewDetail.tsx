@@ -67,13 +67,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
+  const netSubtotal = decimalToNumber(invoice.subtotal);
+  const grossTotal = decimalToNumber(invoice.total);
+  const vatMultiplier =
+    netSubtotal && grossTotal && netSubtotal > 0 ? grossTotal / netSubtotal : 1;
+
   if (invoice.items.length > 0) {
-    return invoice.items.map((item) => ({
-      description: item.description || 'Line item',
-      quantity: formatQuantity(item.quantity),
-      unitPrice: formatCurrencyValue(item.unit_price, invoice.currency),
-      amount: formatCurrencyValue(item.total_price, invoice.currency),
-    }));
+    return invoice.items.map((item) => {
+      const netAmount = decimalToNumber(item.total_price);
+      const grossAmount = netAmount !== null ? netAmount * vatMultiplier : null;
+      return {
+        description: item.description || 'Line item',
+        quantity: formatQuantity(item.quantity),
+        unitPrice: formatCurrencyValue(item.unit_price, invoice.currency),
+        amount: formatCurrencyValue(grossAmount, invoice.currency),
+      };
+    });
   }
 
   if (isRecord(invoice.extracted_data) && Array.isArray(invoice.extracted_data.line_items)) {
@@ -94,11 +103,13 @@ function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
         const qty = typeof item.quantity === 'number' || typeof item.quantity === 'string'
           ? item.quantity
           : null;
+        const netAmount = decimalToNumber(totalPrice);
+        const grossAmount = netAmount !== null ? netAmount * vatMultiplier : null;
         return {
           description,
           quantity: formatQuantity(qty),
           unitPrice: formatCurrencyValue(unitPrice, invoice.currency),
-          amount: formatCurrencyValue(totalPrice, invoice.currency),
+          amount: formatCurrencyValue(grossAmount, invoice.currency),
         };
       })
       .filter((item): item is LineItemView => item !== null);
