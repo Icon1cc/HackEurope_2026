@@ -52,6 +52,32 @@ export interface InvoiceApiResponse {
   updated_at: string;
 }
 
+export interface PaymentApiResponse {
+  id: string;
+  invoice_id: string;
+  stripe_payout_id: string | null;
+  amount: string | number;
+  currency: string;
+  status: string;
+  initiated_at: string;
+  confirmed_at: string | null;
+}
+
+export interface StripeConfirmationApiResponse {
+  transfer_id: string | null;
+  payment_id: string;
+  amount: string | number;
+  currency: string;
+  status: string;
+  initiated_at: string;
+  confirmed_at: string | null;
+}
+
+export interface PaymentConfirmationApiResponse {
+  iban_vendor: string | null;
+  stripe_confirmation: StripeConfirmationApiResponse;
+}
+
 export interface InvoiceUpdateApiRequest {
   extracted_data?: Record<string, unknown> | null;
   anomalies?: Array<Record<string, unknown>> | null;
@@ -265,4 +291,12 @@ export async function updateInvoice(
   payload: InvoiceUpdateApiRequest,
 ): Promise<InvoiceApiResponse> {
   return requestJsonWithBody<InvoiceApiResponse>(`/invoices/${invoiceId}`, 'PATCH', payload);
+}
+
+export async function fetchPaymentsByInvoice(invoiceId: string): Promise<PaymentApiResponse[]> {
+  return requestJson<PaymentApiResponse[]>(`/payments/invoice/${invoiceId}`);
+}
+
+export async function fetchPaymentConfirmation(paymentId: string): Promise<PaymentConfirmationApiResponse> {
+  return requestJson<PaymentConfirmationApiResponse>(`/payments/${paymentId}/confirmation`);
 }

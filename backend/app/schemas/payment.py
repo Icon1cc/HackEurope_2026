@@ -28,3 +28,18 @@ class PaymentResponse(BaseModel):
     confirmed_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class StripeConfirmation(BaseModel):
+    transfer_id: str | None
+    payment_id: UUID
+    amount: Decimal
+    currency: str
+    status: str
+    initiated_at: datetime
+    confirmed_at: datetime | None
+
+
+class PaymentConfirmationResponse(BaseModel):
+    iban_vendor: str | None
+    stripe_confirmation: StripeConfirmation

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { AlertTriangle, CheckCircle2, FileText, Send, XCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, Send, XCircle, ArrowLeft, ShieldCheck, CreditCard, Building2 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
@@ -8,9 +8,12 @@ import {
   decimalToNumber,
   dispatchInvoicesUpdatedEvent,
   fetchInvoiceById,
+  fetchPaymentsByInvoice,
+  fetchPaymentConfirmation,
   formatCurrencyValue,
   updateInvoice,
   type InvoiceApiResponse,
+  type PaymentConfirmationApiResponse,
 } from '../api/backend';
 import {
   buildFallbackEmail,
@@ -230,6 +233,31 @@ export default function ReviewDetail() {
     };
   }, [reviewId]);
 
+  const [paymentConfirmation, setPaymentConfirmation] = useState<PaymentConfirmationApiResponse | null>(null);
+
+  useEffect(() => {
+    if (!invoice || (invoice.status !== 'paid' && invoice.status !== 'approved')) {
+      setPaymentConfirmation(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadConfirmation = async () => {
+      try {
+        const payments = await fetchPaymentsByInvoice(invoice.id);
+        const confirmed = payments.find((p) => p.status === 'confirmed');
+        if (!confirmed || cancelled) return;
+        const confirmation = await fetchPaymentConfirmation(confirmed.id);
+        if (!cancelled) setPaymentConfirmation(confirmation);
+      } catch {
+        // Payment confirmation not available yet — silently ignore
+      }
+    };
+
+    void loadConfirmation();
+    return () => { cancelled = true; };
+  }, [invoice]);
+
   const [recipientEmail, setRecipientEmail] = useState('');
   const [negotiationEmail, setNegotiationEmail] = useState('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
@@ -274,6 +302,14 @@ export default function ReviewDetail() {
       approveFeedback: (num: string) => `Facture ${num} approuvée telle quelle.`,
       rejectFeedback: (num: string, email: string) => `Facture ${num} rejetée. Email de négociation prêt à l'envoi vers ${email}.`,
       decisionUpdateError: (message: string) => `Échec de la mise à jour de la décision: ${message}`,
+      paymentConfirmation: 'Confirmation de paiement',
+      vendorIban: 'IBAN du fournisseur',
+      transferId: 'ID du transfert',
+      paymentAmount: 'Montant',
+      paymentStatus: 'Statut',
+      confirmedAt: 'Confirmé le',
+      statusConfirmed: 'Confirmé',
+      noIban: 'IBAN non renseigné',
     },
     en: {
       title: 'Invoice',
@@ -313,6 +349,14 @@ export default function ReviewDetail() {
       approveFeedback: (num: string) => `Invoice ${num} approved as is.`,
       rejectFeedback: (num: string, email: string) => `Invoice ${num} rejected. Negotiation email ready to send to ${email}.`,
       decisionUpdateError: (message: string) => `Failed to update decision: ${message}`,
+      paymentConfirmation: 'Payment Confirmation',
+      vendorIban: 'Vendor IBAN',
+      transferId: 'Transfer ID',
+      paymentAmount: 'Amount',
+      paymentStatus: 'Status',
+      confirmedAt: 'Confirmed at',
+      statusConfirmed: 'Confirmed',
+      noIban: 'IBAN not provided',
     },
     de: {
       title: 'Rechnung',
@@ -352,6 +396,14 @@ export default function ReviewDetail() {
       approveFeedback: (num: string) => `Rechnung ${num} wie vorliegend genehmigt.`,
       rejectFeedback: (num: string, email: string) => `Rechnung ${num} abgelehnt. Verhandlungs-E-Mail bereit zum Versand an ${email}.`,
       decisionUpdateError: (message: string) => `Entscheidung konnte nicht aktualisiert werden: ${message}`,
+      paymentConfirmation: 'Zahlungsbestätigung',
+      vendorIban: 'IBAN des Lieferanten',
+      transferId: 'Transfer-ID',
+      paymentAmount: 'Betrag',
+      paymentStatus: 'Status',
+      confirmedAt: 'Bestätigt am',
+      statusConfirmed: 'Bestätigt',
+      noIban: 'IBAN nicht angegeben',
     }
   }[language];
 
@@ -687,6 +739,73 @@ export default function ReviewDetail() {
                   <p className="text-sm text-[#E4E4E7] leading-relaxed">
                     {decisionSummary}
                   </p>
+                </div>
+              )}
+
+              {paymentConfirmation && (
+                <div
+                  className="rounded-lg p-4 mb-4"
+                  style={{
+                    background: 'rgba(0, 255, 148, 0.04)',
+                    border: '1px solid rgba(0, 255, 148, 0.15)',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <CreditCard className="w-4 h-4 text-[#00FF94]" />
+                    <div className="text-xs text-[#00FF94] uppercase tracking-wider font-semibold">
+                      {copy.paymentConfirmation}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2">
+                      <Building2 className="w-3.5 h-3.5 text-[#71717A] mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.vendorIban}</div>
+                        <div className="text-sm text-[#E4E4E7] font-mono break-all">
+                          {paymentConfirmation.iban_vendor || copy.noIban}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <CreditCard className="w-3.5 h-3.5 text-[#71717A] mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.transferId}</div>
+                        <div className="text-sm text-[#E4E4E7] font-mono break-all">
+                          {paymentConfirmation.stripe_confirmation.transfer_id ?? '—'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.paymentAmount}</div>
+                        <div className="text-sm text-[#E4E4E7] font-semibold">
+                          {formatCurrencyValue(
+                            paymentConfirmation.stripe_confirmation.amount,
+                            paymentConfirmation.stripe_confirmation.currency,
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.paymentStatus}</div>
+                        <div className="flex items-center gap-1">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#00FF94]" />
+                          <span className="text-sm text-[#00FF94] font-medium">{copy.statusConfirmed}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {paymentConfirmation.stripe_confirmation.confirmed_at && (
+                      <div>
+                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.confirmedAt}</div>
+                        <div className="text-sm text-[#E4E4E7]">
+                          {new Date(paymentConfirmation.stripe_confirmation.confirmed_at).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
