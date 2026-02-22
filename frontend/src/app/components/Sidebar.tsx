@@ -4,6 +4,7 @@ import { LayoutDashboard, Users, Settings, Menu, X, LogOut, ChevronUp, ChevronRi
 import { loadAppSettings } from '../data/appSettings';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import { pendingReviews } from '../data/pendingReviews';
+import { findUploadedReview } from '../data/uploadedReviews';
 import { mockVendorInvoices, mockVendors } from '../data/mockVendors';
 
 const navItems = [
@@ -44,6 +45,11 @@ export function Sidebar() {
     if (pending) {
       // Find vendor by name in pending reviews (since they use names)
       return mockVendors.find(v => v.name === pending.vendor);
+    }
+
+    const uploadedReview = findUploadedReview(reviewId);
+    if (uploadedReview) {
+      return mockVendors.find(v => v.name === uploadedReview.vendor);
     }
     
     // Check standard invoices
