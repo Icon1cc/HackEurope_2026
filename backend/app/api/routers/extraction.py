@@ -7,11 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -43,6 +42,13 @@ ALLOWED_CONTENT_TYPES = {
     "image/png",
     "image/jpeg",
     "image/webp",
+}
+DEFAULT_VENDOR_NAME = "Unknown Vendor"
+PLACEHOLDER_VENDOR_NAMES = {
+    "cloud services provider ltd.",
+    "cloud services provider ltd",
+    "cloud services ltd.",
+    "cloud services ltd",
 }
 
 
@@ -111,6 +117,15 @@ async def extract_invoice(
             detail=f"Invoice extraction failed: {_exception_message(exc)}",
         ) from exc
 
+    extraction = extraction.model_copy(
+        update={
+            "vendor_name": _normalize_vendor_name(extraction.vendor_name),
+            "vendor_address": _normalize_optional_text(extraction.vendor_address),
+            "client_name": _normalize_optional_text(extraction.client_name),
+            "client_address": _normalize_optional_text(extraction.client_address),
+        }
+    )
+
     vendor = await _get_or_create_vendor(
         db=db,
         vendor_name=extraction.vendor_name,
@@ -120,13 +135,14 @@ async def extract_invoice(
     invoice = await _create_invoice_with_items(
         db=db,
         extraction=extraction,
-        vendor_id=vendor.id,
+        vendor=vendor,
     )
+    await _refresh_vendor_metrics(db=db, vendor=vendor)
 
     # Persist first Gemini extraction before second call to avoid losing primary data.
     await db.commit()
     await db.refresh(invoice)
-
+    await db.refresh(vendor)
     vendor_payload = {
         "id": str(vendor.id),
         "name": vendor.name,
@@ -178,18 +194,20 @@ async def extract_invoice(
             "decision": decision.model_dump(mode="json"),
             "rubric": rubric.model_dump(mode="json"),
         }
-        invoice.confidence_score = rubric.total_score
+        invoice.confidence_score = _normalize_confidence_score(rubric.total_score)
         invoice.status = _invoice_status_from_action(decision.action)
         invoice.claude_summary = analysis.summary
         invoice.updated_at = datetime.now(timezone.utc)
+        await _refresh_vendor_metrics(db=db, vendor=vendor)
         await db.commit()
         await db.refresh(invoice)
+        await db.refresh(vendor)
 
         second_pass = {
             "analysis": analysis.model_dump(mode="json"),
             "rubric": rubric.model_dump(mode="json"),
             "decision": decision.model_dump(mode="json"),
-            "confidence_score": rubric.total_score,
+            "confidence_score": invoice.confidence_score,
         }
         invoice_payload = {
             "id": str(invoice.id),
@@ -218,20 +236,22 @@ async def _get_or_create_vendor(
     vendor_name: str | None,
     vendor_address: str | None,
 ) -> Vendor:
-    name = (vendor_name or "Unknown Vendor").strip() or "Unknown Vendor"
-    result = await db.execute(select(Vendor).where(Vendor.name == name))
+    name = _normalize_vendor_name(vendor_name)
+    name_key = name.casefold()
+    result = await db.execute(select(Vendor).where(func.lower(Vendor.name) == name_key))
     vendor = result.scalar_one_or_none()
+    address = _normalize_optional_text(vendor_address)
 
     if vendor is None:
         vendor = Vendor(
             name=name,
             category="computing",
-            vendor_address=(vendor_address or None),
+            vendor_address=address,
         )
         db.add(vendor)
         await db.flush()
-    elif vendor_address and not vendor.vendor_address:
-        vendor.vendor_address = vendor_address
+    elif address and not vendor.vendor_address:
+        vendor.vendor_address = address
         await db.flush()
 
     return vendor
@@ -240,14 +260,14 @@ async def _get_or_create_vendor(
 async def _create_invoice_with_items(
     db: AsyncSession,
     extraction: InvoiceExtraction,
-    vendor_id: UUID,
+    vendor: Vendor,
 ) -> Invoice:
     invoice = Invoice(
-        vendor_id=vendor_id,
+        vendor_id=vendor.id,
         invoice_number=extraction.invoice_number,
         due_date=_parse_datetime(extraction.due_date),
-        vendor_name=extraction.vendor_name,
-        vendor_address=extraction.vendor_address,
+        vendor_name=vendor.name,
+        vendor_address=extraction.vendor_address or vendor.vendor_address,
         client_name=extraction.client_name,
         client_address=extraction.client_address,
         subtotal=_to_decimal(extraction.subtotal),
@@ -273,6 +293,27 @@ async def _create_invoice_with_items(
         )
     await db.flush()
     return invoice
+
+
+async def _refresh_vendor_metrics(db: AsyncSession, vendor: Vendor) -> None:
+    result = await db.execute(
+        select(
+            func.count(Invoice.id),
+            func.avg(Invoice.total),
+            func.avg(Invoice.confidence_score),
+        ).where(Invoice.vendor_id == vendor.id)
+    )
+    invoice_count, avg_invoice_amount, avg_confidence_score = result.one()
+
+    vendor.invoice_count = int(invoice_count or 0)
+    vendor.avg_invoice_amount = avg_invoice_amount
+
+    avg_confidence_decimal = _to_decimal(avg_confidence_score)
+    if avg_confidence_decimal is not None:
+        bounded_confidence = max(Decimal("0"), min(Decimal("100"), avg_confidence_decimal))
+        vendor.trust_score = bounded_confidence / Decimal("100")
+
+    await db.flush()
 
 
 async def _build_vendor_context_payload(
@@ -559,3 +600,26 @@ def _invoice_status_from_action(action: InvoiceAction) -> str:
     if action == InvoiceAction.HUMAN_REVIEW:
         return "flagged"
     return "flagged"
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = " ".join(value.strip().split())
+    return normalized or None
+
+
+def _normalize_vendor_name(vendor_name: str | None) -> str:
+    normalized = _normalize_optional_text(vendor_name)
+    if normalized is None:
+        return DEFAULT_VENDOR_NAME
+    if normalized.casefold() in PLACEHOLDER_VENDOR_NAMES:
+        return DEFAULT_VENDOR_NAME
+    return normalized
+
+
+def _normalize_confidence_score(value: Any) -> int:
+    numeric = _to_float(value)
+    if numeric is None:
+        return 0
+    return max(0, min(100, int(round(numeric))))

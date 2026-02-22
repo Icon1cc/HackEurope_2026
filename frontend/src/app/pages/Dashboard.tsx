@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TrendingUp,
   Upload,
@@ -15,12 +15,11 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
-import { pendingReviews } from '../data/pendingReviews';
+import { fetchInvoices, formatCurrencyValue, decimalToNumber, type InvoiceApiResponse } from '../api/backend';
 import { uploadInvoiceForExtraction } from '../api/extraction';
-import { buildUploadOutcome, loadUploadedReviews, saveUploadedReview } from '../data/uploadedReviews';
+import { isProcessedStatus, toPendingReview, type PendingReview } from '../data/reviewTypes';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
-const chartVolumes = [45, 52, 48, 65, 58, 70, 75];
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_MIME_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
 const ACCEPTED_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'webp'];
@@ -33,25 +32,18 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  const [uploadedPendingReviews, setUploadedPendingReviews] = useState(() => loadUploadedReviews());
-
-  const dashboardReviews = useMemo(() => {
-    const reviewsById = new Map<string, (typeof pendingReviews)[number]>();
-    for (const review of [...uploadedPendingReviews, ...pendingReviews]) {
-      reviewsById.set(review.id, review);
-    }
-    return [...reviewsById.values()];
-  }, [uploadedPendingReviews]);
+  const [invoices, setInvoices] = useState<InvoiceApiResponse[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [invoicesError, setInvoicesError] = useState<string | null>(null);
 
   const copy = {
     fr: {
-      months: ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.'],
       title: 'Centre de contrôle',
       subtitle: 'Traitement autonome des factures en temps réel',
       totalValueProtected: 'Valeur totale protégée',
       totalValueTrend: 'vs mois dernier',
-      humanHoursSaved: 'Heures humaines économisées',
-      humanHoursTrend: "efficacité d'automatisation",
+      invoicesProcessed: 'Factures traitées',
+      invoicesProcessedTrend: 'actuellement en revue',
       processingVolume: 'Volume de traitement',
       processInvoice: 'Traiter une facture',
       dropInvoice: 'Dépose un PDF ici ou clique pour parcourir',
@@ -69,15 +61,17 @@ export default function Dashboard() {
       closePanel: 'Fermer le panneau',
       statusPending: 'en attente',
       statusEscalated: 'escaladé',
+      loadingReviews: 'Chargement des revues...',
+      noPendingReviews: 'Aucune revue en attente.',
+      reviewsLoadFailed: 'Impossible de charger les revues.',
     },
     en: {
-      months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
       title: 'Command Center',
       subtitle: 'Real-time autonomous invoice processing',
       totalValueProtected: 'Total Value Protected',
       totalValueTrend: 'vs last month',
-      humanHoursSaved: 'Human Hours Saved',
-      humanHoursTrend: 'automation efficiency',
+      invoicesProcessed: 'Invoices Processed',
+      invoicesProcessedTrend: 'currently in review',
       processingVolume: 'Processing Volume',
       processInvoice: 'Process Invoice',
       dropInvoice: 'Drop PDF invoice here or click to browse',
@@ -95,15 +89,17 @@ export default function Dashboard() {
       closePanel: 'Close panel',
       statusPending: 'pending',
       statusEscalated: 'escalated',
+      loadingReviews: 'Loading reviews...',
+      noPendingReviews: 'No pending reviews.',
+      reviewsLoadFailed: 'Failed to load reviews.',
     },
     de: {
-      months: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul'],
       title: 'Kontrollzentrum',
       subtitle: 'Autonome Rechnungsverarbeitung in Echtzeit',
       totalValueProtected: 'Geschützter Gesamtwert',
       totalValueTrend: 'vs. Letzter Monat',
-      humanHoursSaved: 'Eingesparte Arbeitsstunden',
-      humanHoursTrend: 'Automatisierungseffizienz',
+      invoicesProcessed: 'Verarbeitete Rechnungen',
+      invoicesProcessedTrend: 'aktuell in Prüfung',
       processingVolume: 'Verarbeitungsvolumen',
       processInvoice: 'Rechnung verarbeiten',
       dropInvoice: 'PDF hier ablegen oder zum Durchsuchen klicken',
@@ -121,11 +117,129 @@ export default function Dashboard() {
       closePanel: 'Panel schließen',
       statusPending: 'ausstehend',
       statusEscalated: 'eskaliert',
+      loadingReviews: 'Prüfungen werden geladen...',
+      noPendingReviews: 'Keine ausstehenden Prüfungen.',
+      reviewsLoadFailed: 'Prüfungen konnten nicht geladen werden.',
     },
   }[language];
-  const chartData = chartVolumes.map((volume, index) => ({ month: copy.months[index], volume }));
-  const getStatusLabel = (status: 'pending' | 'escalated') =>
+  const getStatusLabel = (status: PendingReview['status']) =>
     status === 'escalated' ? copy.statusEscalated : copy.statusPending;
+
+  const loadInvoices = useCallback(async () => {
+    setInvoicesLoading(true);
+    setInvoicesError(null);
+    try {
+      const fetchedInvoices = await fetchInvoices();
+      setInvoices(fetchedInvoices);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setInvoicesError(message);
+      setInvoices([]);
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadInvoices();
+  }, [loadInvoices]);
+
+  const dashboardReviews = useMemo<PendingReview[]>(() => {
+    return invoices
+      .filter((invoice) => !isProcessedStatus(invoice.status))
+      .map((invoice) => toPendingReview(invoice))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [invoices]);
+
+  const chartData = useMemo(() => {
+    const localeByLanguage: Record<typeof language, string> = {
+      fr: 'fr-FR',
+      en: 'en-US',
+      de: 'de-DE',
+    };
+    const locale = localeByLanguage[language];
+    const monthlyCounts = new Map<string, number>();
+
+    for (const invoice of invoices) {
+      const createdAt = new Date(invoice.created_at);
+      if (Number.isNaN(createdAt.getTime())) {
+        continue;
+      }
+      const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
+      monthlyCounts.set(key, (monthlyCounts.get(key) ?? 0) + 1);
+    }
+
+    const now = new Date();
+    const points: Array<{ month: string; volume: number }> = [];
+    for (let offset = 6; offset >= 0; offset -= 1) {
+      const pointDate = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const key = `${pointDate.getFullYear()}-${String(pointDate.getMonth() + 1).padStart(2, '0')}`;
+      points.push({
+        month: pointDate.toLocaleDateString(locale, { month: 'short' }),
+        volume: monthlyCounts.get(key) ?? 0,
+      });
+    }
+    return points;
+  }, [invoices, language]);
+
+  const processedInvoices = useMemo(
+    () => invoices.filter((invoice) => isProcessedStatus(invoice.status)),
+    [invoices],
+  );
+
+  const rejectedInvoices = useMemo(
+    () => invoices.filter((invoice) => invoice.status === 'rejected'),
+    [invoices],
+  );
+
+  const totalValueProtected = useMemo(() => {
+    return rejectedInvoices.reduce((sum, invoice) => sum + (decimalToNumber(invoice.total) ?? 0), 0);
+  }, [rejectedInvoices]);
+
+  const trend = useMemo(() => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const previousDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthKey = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, '0')}`;
+
+    let currentMonthTotal = 0;
+    let previousMonthTotal = 0;
+
+    for (const invoice of rejectedInvoices) {
+      const createdAt = new Date(invoice.created_at);
+      if (Number.isNaN(createdAt.getTime())) {
+        continue;
+      }
+      const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
+      const amount = decimalToNumber(invoice.total) ?? 0;
+      if (key === currentMonthKey) {
+        currentMonthTotal += amount;
+      } else if (key === previousMonthKey) {
+        previousMonthTotal += amount;
+      }
+    }
+
+    const percentChange = previousMonthTotal > 0
+      ? ((currentMonthTotal - previousMonthTotal) / previousMonthTotal) * 100
+      : null;
+
+    return { percentChange };
+  }, [rejectedInvoices]);
+
+  const primaryCurrency = rejectedInvoices.find((invoice) => invoice.currency)?.currency
+    ?? invoices.find((invoice) => invoice.currency)?.currency
+    ?? 'USD';
+
+  const totalValueDisplay = formatCurrencyValue(totalValueProtected, primaryCurrency);
+  const totalValueTrendDisplay = trend.percentChange === null
+    ? '—'
+    : `${trend.percentChange >= 0 ? '↑' : '↓'} ${Math.abs(trend.percentChange).toFixed(1)}%`;
+  const totalValueTrendColor = trend.percentChange === null
+    ? '#71717A'
+    : (trend.percentChange >= 0 ? '#00FF94' : '#FF0055');
+
+  const processedCount = processedInvoices.length;
+  const pendingCount = dashboardReviews.length;
 
   const isAcceptedFile = (file: File): boolean => {
     if (ACCEPTED_MIME_TYPES.has(file.type)) {
@@ -159,16 +273,17 @@ export default function Dashboard() {
 
     try {
       const response = await uploadInvoiceForExtraction(file);
-      const outcome = buildUploadOutcome(response);
+      const invoiceNumber = response.invoice.invoice_number
+        ?? response.extraction.invoice_number
+        ?? response.invoice.id.slice(0, 8).toUpperCase();
 
-      if (outcome.kind === 'requires_review') {
-        const nextReviews = saveUploadedReview(outcome.review);
-        setUploadedPendingReviews(nextReviews);
+      if (!isProcessedStatus(response.invoice.status)) {
         setPanelOpen(true);
-        setUploadSuccess(copy.uploadSuccessReview(outcome.review.invoiceNumber));
+        setUploadSuccess(copy.uploadSuccessReview(invoiceNumber));
       } else {
-        setUploadSuccess(copy.uploadSuccessApproved(outcome.invoiceNumber));
+        setUploadSuccess(copy.uploadSuccessApproved(invoiceNumber));
       }
+      await loadInvoices();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       setUploadError(`${copy.uploadErrorPrefix} ${message}`);
@@ -243,7 +358,7 @@ export default function Dashboard() {
               <div>
                 <div className="text-xs text-[#71717A] uppercase tracking-wider font-medium mb-2">{copy.totalValueProtected}</div>
                 <div className="text-4xl sm:text-5xl display-number text-[#00F2FF]">
-                  $2.4M
+                  {totalValueDisplay}
                 </div>
               </div>
               <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0, 242, 255, 0.08)', border: '1px solid rgba(0, 242, 255, 0.2)' }}>
@@ -251,7 +366,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-[#00FF94]">↑ 12.5%</span>
+              <span style={{ color: totalValueTrendColor }}>{totalValueTrendDisplay}</span>
               <span className="text-[#71717A]">{copy.totalValueTrend}</span>
             </div>
           </div>
@@ -262,9 +377,9 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="text-xs text-[#71717A] uppercase tracking-wider font-medium mb-2">{copy.humanHoursSaved}</div>
+                <div className="text-xs text-[#71717A] uppercase tracking-wider font-medium mb-2">{copy.invoicesProcessed}</div>
                 <div className="text-4xl sm:text-5xl display-number text-[#00FF94]">
-                  342
+                  {processedCount}
                 </div>
               </div>
               <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0, 255, 148, 0.08)', border: '1px solid rgba(0, 255, 148, 0.2)' }}>
@@ -272,8 +387,8 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-[#00FF94]">↑ 28.3%</span>
-              <span className="text-[#71717A]">{copy.humanHoursTrend}</span>
+              <span className="text-[#00F2FF]">{pendingCount}</span>
+              <span className="text-[#71717A]">{copy.invoicesProcessedTrend}</span>
             </div>
           </div>
         </div>
@@ -469,46 +584,55 @@ export default function Dashboard() {
 
         {/* Panel body — scrollable */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
-          {dashboardReviews.map((review) => (
-            <Link
-              key={review.id}
-              to={`/reviews/${review.id}`}
-              className="block rounded-lg p-3.5 transition-all duration-200"
-              style={{ background: 'rgba(20, 22, 25, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 242, 255, 0.06)';
-                e.currentTarget.style.border = '1px solid rgba(0, 242, 255, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(20, 22, 25, 0.7)';
-                e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.08)';
-              }}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  {review.status === 'escalated'
-                    ? <AlertCircle   className="w-3.5 h-3.5 shrink-0 text-[#FF0055]" />
-                    : <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#FFB800]" />
-                  }
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
-                    style={
-                      review.status === 'escalated'
-                        ? { background: 'rgba(255,0,85,0.08)', color: '#FF0055', border: '1px solid rgba(255,0,85,0.3)' }
-                        : { background: 'rgba(255,184,0,0.08)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.3)' }
+          {invoicesLoading && (
+            <div className="text-sm text-[#71717A]">{copy.loadingReviews}</div>
+          )}
+          {!invoicesLoading && invoicesError && (
+            <div className="text-sm text-[#FF6B8A]">{copy.reviewsLoadFailed}</div>
+          )}
+          {!invoicesLoading && !invoicesError && dashboardReviews.length === 0 && (
+            <div className="text-sm text-[#71717A]">{copy.noPendingReviews}</div>
+          )}
+          {!invoicesLoading && !invoicesError && dashboardReviews.map((review) => (
+              <Link
+                key={review.id}
+                to={`/reviews/${review.id}`}
+                className="block rounded-lg p-3.5 transition-all duration-200"
+                style={{ background: 'rgba(20, 22, 25, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 242, 255, 0.06)';
+                  e.currentTarget.style.border = '1px solid rgba(0, 242, 255, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(20, 22, 25, 0.7)';
+                  e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+                }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {review.status === 'escalated'
+                      ? <AlertCircle className="w-3.5 h-3.5 shrink-0 text-[#FF0055]" />
+                      : <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#FFB800]" />
                     }
-                  >
-                    {getStatusLabel(review.status)}
-                  </span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold"
+                      style={
+                        review.status === 'escalated'
+                          ? { background: 'rgba(255,0,85,0.08)', color: '#FF0055', border: '1px solid rgba(255,0,85,0.3)' }
+                          : { background: 'rgba(255,184,0,0.08)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.3)' }
+                      }
+                    >
+                      {getStatusLabel(review.status)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#52525B] shrink-0">{review.date}</span>
                 </div>
-                <span className="text-[10px] text-[#52525B] shrink-0">{review.date}</span>
-              </div>
 
-              <div className="text-sm font-semibold text-[#FAFAFA] mb-0.5">{review.vendor}</div>
-              <div className="text-base font-bold display-number text-[#00F2FF] mb-2">{review.amount}</div>
-              <div className="text-[11px] text-[#71717A] line-clamp-2 leading-relaxed">{review.reasons[language][0]}</div>
-            </Link>
-          ))}
+                <div className="text-sm font-semibold text-[#FAFAFA] mb-0.5">{review.vendor}</div>
+                <div className="text-base font-bold display-number text-[#00F2FF] mb-2">{review.amount}</div>
+                <div className="text-[11px] text-[#71717A] line-clamp-2 leading-relaxed">{review.reasons[language][0]}</div>
+              </Link>
+            ))}
         </div>
       </div>
     </div>

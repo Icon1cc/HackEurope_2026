@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
 import { Sidebar } from '../components/Sidebar';
 import { VercelBackground } from '../components/VercelBackground';
@@ -15,13 +15,32 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { mockVendors, mockVendorInvoices } from '../data/mockVendors';
-import type { VendorInvoice } from '../data/mockVendors';
+import {
+  decimalToNumber,
+  fetchInvoices,
+  fetchVendorById,
+  formatCurrencyValue,
+  trustScoreToPercent,
+  type InvoiceApiResponse,
+  type VendorApiResponse,
+} from '../api/backend';
+import { isProcessedStatus } from '../data/reviewTypes';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 const ITEMS_PER_PAGE = 8;
 type InvoiceSortKey = 'date' | 'invoiceNumber' | 'amount' | 'status';
 type SortDirection = 'asc' | 'desc';
+type VendorInvoiceStatus = 'paid' | 'pending' | 'flagged' | 'rejected';
+
+interface VendorInvoiceView {
+  id: string;
+  date: string;
+  invoiceNumber: string;
+  amount: string;
+  amountValue: number;
+  status: VendorInvoiceStatus;
+  score: number;
+}
 
 // Smooth color interpolation: red -> amber -> cyan -> green
 function lerpHex(a: string, b: string, t: number): string {
@@ -39,13 +58,26 @@ function getScoreColor(score: number): string {
   return lerpHex('#00F2FF', '#00FF94', (s - 75) / 25);
 }
 
-function parseCurrency(value: string): number {
-  const numericValue = Number(value.replace(/[^0-9.-]/g, ''));
-  return Number.isNaN(numericValue) ? 0 : numericValue;
+function mapInvoiceStatus(status: string | null | undefined): VendorInvoiceStatus {
+  const normalized = status?.trim().toLowerCase() ?? '';
+  if (normalized === 'rejected' || normalized === 'overcharge') {
+    return 'rejected';
+  }
+  if (normalized === 'flagged') {
+    return 'flagged';
+  }
+  if (isProcessedStatus(normalized)) {
+    return 'paid';
+  }
+  return 'pending';
 }
 
-function getInvoiceScore(invoice: VendorInvoice): number {
-  const baseScoreByStatus: Record<VendorInvoice['status'], number> = {
+function getInvoiceScore(invoice: InvoiceApiResponse, status: VendorInvoiceStatus): number {
+  if (typeof invoice.confidence_score === 'number' && Number.isFinite(invoice.confidence_score)) {
+    return Math.max(0, Math.min(100, Math.round(invoice.confidence_score)));
+  }
+
+  const baseScoreByStatus: Record<VendorInvoiceStatus, number> = {
     paid: 92,
     pending: 66,
     flagged: 44,
@@ -53,11 +85,11 @@ function getInvoiceScore(invoice: VendorInvoice): number {
   };
   const numericId = Number(invoice.id.replace(/\D/g, ''));
   const variance = Number.isNaN(numericId) ? 0 : (numericId % 7) - 3;
-  const score = baseScoreByStatus[invoice.status] + variance;
+  const score = baseScoreByStatus[status] + variance;
   return Math.max(0, Math.min(100, score));
 }
 
-const getStatusStyles = (status: VendorInvoice['status']) => {
+const getStatusStyles = (status: VendorInvoiceStatus) => {
   switch (status) {
     case 'paid':
       return { color: '#00FF94', border: 'rgba(0, 255, 148, 0.3)', bg: 'rgba(0, 255, 148, 0.06)' };
@@ -70,13 +102,28 @@ const getStatusStyles = (status: VendorInvoice['status']) => {
   }
 };
 
+function toInvoiceView(invoice: InvoiceApiResponse): VendorInvoiceView {
+  const status = mapInvoiceStatus(invoice.status);
+  return {
+    id: invoice.id,
+    date: invoice.created_at?.slice(0, 10) ?? '',
+    invoiceNumber: invoice.invoice_number?.trim() || invoice.id.slice(0, 8).toUpperCase(),
+    amountValue: decimalToNumber(invoice.total) ?? 0,
+    amount: formatCurrencyValue(invoice.total, invoice.currency),
+    status,
+    score: getInvoiceScore(invoice, status),
+  };
+}
+
 export default function VendorDetail() {
   const language = useAppLanguage();
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
 
-  const vendor = mockVendors.find((v) => v.id === vendorId);
-  const allInvoices = mockVendorInvoices.filter((i) => i.vendorId === vendorId);
+  const [vendor, setVendor] = useState<VendorApiResponse | null>(null);
+  const [allInvoices, setAllInvoices] = useState<InvoiceApiResponse[]>([]);
+  const [vendorLoading, setVendorLoading] = useState(true);
+  const [vendorError, setVendorError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -102,6 +149,8 @@ export default function VendorDetail() {
       chartAverage: 'Moyenne',
       chartTooltipScore: 'Score facture',
       noResult: 'Aucune facture ne correspond à votre recherche.',
+      vendorLoading: 'Chargement du vendor...',
+      vendorLoadFailed: 'Impossible de charger le vendor.',
       paginationSur: 'sur',
       paginationInvoices: 'factures',
       paginationNoResult: 'Aucun résultat',
@@ -125,6 +174,8 @@ export default function VendorDetail() {
       chartAverage: 'Average',
       chartTooltipScore: 'Invoice score',
       noResult: 'No invoice matches your search.',
+      vendorLoading: 'Loading vendor...',
+      vendorLoadFailed: 'Failed to load vendor.',
       paginationSur: 'of',
       paginationInvoices: 'invoices',
       paginationNoResult: 'No results',
@@ -148,27 +199,74 @@ export default function VendorDetail() {
       chartAverage: 'Durchschnitt',
       chartTooltipScore: 'Rechnungs-Score',
       noResult: 'Keine Rechnung entspricht Ihrer Suche.',
+      vendorLoading: 'Lieferant wird geladen...',
+      vendorLoadFailed: 'Lieferant konnte nicht geladen werden.',
       paginationSur: 'von',
       paginationInvoices: 'Rechnungen',
       paginationNoResult: 'Keine Ergebnisse',
     },
   }[language];
 
+  const loadVendorData = useCallback(async () => {
+    if (!vendorId) {
+      setVendor(null);
+      setAllInvoices([]);
+      setVendorError('Missing vendor id');
+      setVendorLoading(false);
+      return;
+    }
+
+    setVendorLoading(true);
+    setVendorError(null);
+    try {
+      const [fetchedVendor, fetchedInvoices] = await Promise.all([
+        fetchVendorById(vendorId),
+        fetchInvoices(),
+      ]);
+
+      const normalizedVendorName = fetchedVendor.name.trim().toLowerCase();
+      const vendorInvoices = fetchedInvoices.filter((invoice) => {
+        if (invoice.vendor_id === fetchedVendor.id) {
+          return true;
+        }
+        const invoiceVendorName = invoice.vendor_name?.trim().toLowerCase();
+        return !invoice.vendor_id && invoiceVendorName === normalizedVendorName;
+      });
+
+      setVendor(fetchedVendor);
+      setAllInvoices(vendorInvoices);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setVendorError(message);
+      setVendor(null);
+      setAllInvoices([]);
+    } finally {
+      setVendorLoading(false);
+    }
+  }, [vendorId]);
+
+  useEffect(() => {
+    void loadVendorData();
+  }, [loadVendorData]);
+
+  const vendorInvoices = useMemo(() => {
+    return allInvoices.map(toInvoiceView);
+  }, [allInvoices]);
+
   const scoreTrendData = useMemo(() => {
-    return [...allInvoices]
+    return [...vendorInvoices]
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((invoice) => ({
         date: invoice.date,
         invoiceNumber: invoice.invoiceNumber,
-        score: getInvoiceScore(invoice),
+        score: invoice.score,
       }));
-  }, [allInvoices]);
+  }, [vendorInvoices]);
 
   const filtered = useMemo(() => {
-    return allInvoices.filter((invoice) => {
-      return invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-  }, [allInvoices, searchTerm]);
+    const query = searchTerm.toLowerCase();
+    return vendorInvoices.filter((invoice) => invoice.invoiceNumber.toLowerCase().includes(query));
+  }, [vendorInvoices, searchTerm]);
 
   const sorted = useMemo(() => {
     if (!sortConfig) {
@@ -186,7 +284,7 @@ export default function VendorDetail() {
           comparison = a.invoiceNumber.localeCompare(b.invoiceNumber);
           break;
         case 'amount':
-          comparison = parseCurrency(a.amount) - parseCurrency(b.amount);
+          comparison = a.amountValue - b.amountValue;
           break;
         case 'status':
           comparison = a.status.localeCompare(b.status);
@@ -199,6 +297,25 @@ export default function VendorDetail() {
     return sortedList;
   }, [filtered, sortConfig]);
 
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [currentPage, sorted.length]);
+
+  if (vendorLoading) {
+    return (
+      <div className="flex min-h-screen relative overflow-hidden">
+        <VercelBackground />
+        <Sidebar />
+        <main className="flex-1 lg:ml-64 p-8 relative z-10 flex items-center justify-center">
+          <p className="text-[#71717A]">{copy.vendorLoading}</p>
+        </main>
+      </div>
+    );
+  }
+
   if (!vendor) {
     return (
       <div className="flex min-h-screen relative overflow-hidden">
@@ -206,7 +323,8 @@ export default function VendorDetail() {
         <Sidebar />
         <main className="flex-1 lg:ml-64 p-8 relative z-10 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-[#71717A] mb-4">{copy.notFound}</p>
+            <p className="text-[#71717A] mb-2">{copy.notFound}</p>
+            {vendorError && <p className="text-[#52525B] text-sm mb-4">{copy.vendorLoadFailed}: {vendorError}</p>}
             <button
               onClick={() => navigate('/vendors')}
               className="px-4 py-2 rounded-lg text-sm text-[#00F2FF] transition-all"
@@ -220,13 +338,19 @@ export default function VendorDetail() {
     );
   }
 
-  const scoreColor = getScoreColor(vendor.trustScore);
+  const trustScore = trustScoreToPercent(vendor.trust_score);
+  const scoreColor = getScoreColor(trustScore);
   const lineGradientId = `invoice-score-line-gradient-${vendor.id}`;
   const glowGradientId = `invoice-score-glow-gradient-${vendor.id}`;
-  const latestInvoiceScore = scoreTrendData.at(-1)?.score ?? vendor.trustScore;
+  const latestInvoiceScore = scoreTrendData.at(-1)?.score ?? trustScore;
   const averageInvoiceScore = scoreTrendData.length === 0
-    ? 0
+    ? trustScore
     : Math.round(scoreTrendData.reduce((sum, point) => sum + point.score, 0) / scoreTrendData.length);
+
+  const totalInvoicesCount = vendorInvoices.length;
+  const paidCount = vendorInvoices.filter((invoice) => invoice.status === 'paid').length;
+  const processingCount = vendorInvoices.filter((invoice) => invoice.status === 'pending' || invoice.status === 'flagged').length;
+  const rejectedCount = vendorInvoices.filter((invoice) => invoice.status === 'rejected').length;
 
   const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -267,9 +391,13 @@ export default function VendorDetail() {
       return value;
     }
 
-    return language === 'fr'
-      ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
-      : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (language === 'fr') {
+      return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    }
+    if (language === 'de') {
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -318,7 +446,7 @@ export default function VendorDetail() {
                 >
                   {vendor.name}
                 </h1>
-                <p className="text-[#71717A] text-sm">{vendor.category}</p>
+                <p className="text-[#71717A] text-sm">{vendor.category?.trim() || 'Uncategorized'}</p>
               </div>
             </div>
 
@@ -328,12 +456,12 @@ export default function VendorDetail() {
                 className="text-4xl font-bold tabular-nums"
                 style={{ fontFamily: 'Geist Sans, Inter, sans-serif', color: scoreColor }}
               >
-                {vendor.trustScore}
+                {trustScore}
               </span>
               <div className="w-24 rounded-full overflow-hidden" style={{ height: '4px', background: 'rgba(255,255,255,0.05)' }}>
                 <div
                   style={{
-                    width: `${vendor.trustScore}%`,
+                    width: `${trustScore}%`,
                     height: '100%',
                     borderRadius: '9999px',
                     background: scoreColor,
@@ -346,10 +474,10 @@ export default function VendorDetail() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             {[
-              { icon: FileText, label: copy.totalInvoices, value: vendor.paid + vendor.pending + vendor.rejected, color: '#FAFAFA' },
-              { icon: CheckCircle, label: copy.paid, value: vendor.paid, color: '#00FF94' },
-              { icon: Clock, label: copy.processing, value: vendor.pending, color: '#00F2FF' },
-              { icon: XCircle, label: copy.rejected, value: vendor.rejected, color: '#FF0055' },
+              { icon: FileText, label: copy.totalInvoices, value: totalInvoicesCount, color: '#FAFAFA' },
+              { icon: CheckCircle, label: copy.paid, value: paidCount, color: '#00FF94' },
+              { icon: Clock, label: copy.processing, value: processingCount, color: '#00F2FF' },
+              { icon: XCircle, label: copy.rejected, value: rejectedCount, color: '#FF0055' },
             ].map(({ icon: Icon, label, value, color }) => (
               <div key={label} className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}10`, border: `1px solid ${color}30` }}>

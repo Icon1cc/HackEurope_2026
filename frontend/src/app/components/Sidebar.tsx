@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { LayoutDashboard, Users, Settings, Menu, X, LogOut, ChevronUp, ChevronRight, Building2 } from 'lucide-react';
 import { loadAppSettings } from '../data/appSettings';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
-import { pendingReviews } from '../data/pendingReviews';
-import { findUploadedReview } from '../data/uploadedReviews';
-import { mockVendorInvoices, mockVendors } from '../data/mockVendors';
+import { fetchInvoiceById, fetchVendorById } from '../api/backend';
 
 const navItems = [
   { path: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
@@ -32,34 +30,7 @@ export function Sidebar() {
   const language = useAppLanguage();
   const location = useLocation();
   const navigate = useNavigate();
-  
-  // Detect if we are on a review page and find the vendor
-  const activeVendor = useMemo(() => {
-    const reviewMatch = location.pathname.match(/\/reviews\/([^\/]+)/);
-    if (!reviewMatch) return null;
-    
-    const reviewId = reviewMatch[1];
-    
-    // Check pendingReviews
-    const pending = pendingReviews.find(r => r.id === reviewId);
-    if (pending) {
-      // Find vendor by name in pending reviews (since they use names)
-      return mockVendors.find(v => v.name === pending.vendor);
-    }
-
-    const uploadedReview = findUploadedReview(reviewId);
-    if (uploadedReview) {
-      return mockVendors.find(v => v.name === uploadedReview.vendor);
-    }
-    
-    // Check standard invoices
-    const invoice = mockVendorInvoices.find(i => i.id === reviewId);
-    if (invoice) {
-      return mockVendors.find(v => v.id === invoice.vendorId);
-    }
-    
-    return null;
-  }, [location.pathname]);
+  const [activeVendor, setActiveVendor] = useState<{ id: string; name: string } | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -89,6 +60,40 @@ export function Sidebar() {
   });
 
   const toggleSidebar = () => setIsOpen(!isOpen);
+
+  useEffect(() => {
+    const reviewMatch = location.pathname.match(/\/reviews\/([^/]+)/);
+    if (!reviewMatch) {
+      setActiveVendor(null);
+      return;
+    }
+
+    const reviewId = reviewMatch[1];
+    let cancelled = false;
+
+    const loadVendor = async () => {
+      try {
+        const invoice = await fetchInvoiceById(reviewId);
+        if (!invoice.vendor_id) {
+          if (!cancelled) setActiveVendor(null);
+          return;
+        }
+        const vendor = await fetchVendorById(invoice.vendor_id);
+        if (!cancelled) {
+          setActiveVendor({ id: vendor.id, name: vendor.name });
+        }
+      } catch {
+        if (!cancelled) {
+          setActiveVendor(null);
+        }
+      }
+    };
+
+    void loadVendor();
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

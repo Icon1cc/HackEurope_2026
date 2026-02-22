@@ -1,32 +1,41 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Sidebar } from '../components/Sidebar';
 import { VercelBackground } from '../components/VercelBackground';
 import { Search, Download, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  decimalToNumber,
+  fetchInvoices,
+  fetchVendors,
+  formatCurrencyValue,
+  trustScoreToPercent,
+  type InvoiceApiResponse,
+  type VendorApiResponse,
+} from '../api/backend';
+import { isProcessedStatus } from '../data/reviewTypes';
 
-interface Invoice {
+interface InvoiceRow {
   id: string;
   date: string;
   invoiceNumber: string;
   vendor: string;
   amount: string;
+  amountValue: number;
   status: 'paid' | 'pending' | 'flagged' | 'rejected';
   trustScore: string;
+  trustScoreValue: number;
   spendTrend: number[];
 }
 
 type HistorySortKey = 'date' | 'invoiceNumber' | 'vendor' | 'amount' | 'trustScore' | 'status';
 type SortDirection = 'asc' | 'desc';
 
-const mockInvoices: Invoice[] = [
-  { id: '1', date: '2026-02-20', invoiceNumber: 'INV-2345', vendor: 'Acme Corp', amount: '$5,234.00', status: 'paid', trustScore: 'A+', spendTrend: [45, 48, 50, 52, 53] },
-  { id: '2', date: '2026-02-19', invoiceNumber: 'INV-2344', vendor: 'TechSupply Inc', amount: '$12,450.00', status: 'flagged', trustScore: 'B', spendTrend: [85, 88, 90, 95, 124] },
-  { id: '3', date: '2026-02-19', invoiceNumber: 'INV-2343', vendor: 'Office Depot', amount: '$892.50', status: 'paid', trustScore: 'A', spendTrend: [8, 9, 8, 9, 9] },
-  { id: '4', date: '2026-02-18', invoiceNumber: 'INV-2342', vendor: 'Cloud Services Ltd', amount: '$3,200.00', status: 'pending', trustScore: 'A', spendTrend: [30, 31, 32, 32, 32] },
-  { id: '5', date: '2026-02-18', invoiceNumber: 'INV-2341', vendor: 'Marketing Pro', amount: '$7,890.00', status: 'paid', trustScore: 'A-', spendTrend: [70, 72, 75, 78, 79] },
-  { id: '6', date: '2026-02-17', invoiceNumber: 'INV-2340', vendor: 'Shipping Express', amount: '$425.00', status: 'rejected', trustScore: 'C', spendTrend: [5, 4, 3, 4, 4] },
-  { id: '7', date: '2026-02-17', invoiceNumber: 'INV-2339', vendor: 'Legal Advisors', amount: '$15,000.00', status: 'paid', trustScore: 'A+', spendTrend: [150, 150, 150, 150, 150] },
-  { id: '8', date: '2026-02-16', invoiceNumber: 'INV-2338', vendor: 'IT Solutions', amount: '$9,500.00', status: 'pending', trustScore: 'A', spendTrend: [88, 90, 92, 93, 95] },
-];
+const STATUS_BASE_SCORE: Record<InvoiceRow['status'], number> = {
+  paid: 90,
+  pending: 68,
+  flagged: 44,
+  rejected: 30,
+};
 
 const MiniSparkline = ({ data }: { data: number[] }) => {
   const max = Math.max(...data);
@@ -57,33 +66,145 @@ const MiniSparkline = ({ data }: { data: number[] }) => {
   );
 };
 
-function parseCurrency(value: string): number {
-  const numericValue = Number(value.replace(/[^0-9.-]/g, ''));
-  return Number.isNaN(numericValue) ? 0 : numericValue;
+function toTrustGrade(score: number): string {
+  if (score >= 95) return 'A+';
+  if (score >= 85) return 'A';
+  if (score >= 75) return 'A-';
+  if (score >= 65) return 'B';
+  if (score >= 50) return 'C';
+  return 'D';
 }
 
 function trustScoreRank(score: string): number {
   switch (score) {
     case 'A+':
-      return 5;
+      return 6;
     case 'A':
-      return 4;
+      return 5;
     case 'A-':
-      return 3;
+      return 4;
     case 'B':
-      return 2;
+      return 3;
     case 'C':
+      return 2;
+    case 'D':
       return 1;
     default:
       return 0;
   }
 }
 
+function toStatus(status: string | null | undefined): InvoiceRow['status'] {
+  const normalized = status?.trim().toLowerCase() ?? '';
+  if (normalized === 'rejected' || normalized === 'overcharge') {
+    return 'rejected';
+  }
+  if (normalized === 'flagged') {
+    return 'flagged';
+  }
+  if (isProcessedStatus(normalized)) {
+    return 'paid';
+  }
+  return 'pending';
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function getFallbackScore(invoice: InvoiceApiResponse, status: InvoiceRow['status']): number {
+  const numericId = Number(invoice.id.replace(/\D/g, ''));
+  const variance = Number.isNaN(numericId) ? 0 : (numericId % 7) - 3;
+  return clampScore(STATUS_BASE_SCORE[status] + variance);
+}
+
+function getVendorKey(invoice: InvoiceApiResponse): string {
+  if (invoice.vendor_id) {
+    return `id:${invoice.vendor_id}`;
+  }
+  if (invoice.vendor_name?.trim()) {
+    return `name:${invoice.vendor_name.trim().toLowerCase()}`;
+  }
+  return 'unknown';
+}
+
+function buildSpendTrendMap(invoices: InvoiceApiResponse[]): Map<string, number[]> {
+  const sorted = [...invoices].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const trendMap = new Map<string, number[]>();
+
+  for (const invoice of sorted) {
+    const key = getVendorKey(invoice);
+    const amount = decimalToNumber(invoice.total) ?? 0;
+    const series = trendMap.get(key);
+    if (series) {
+      series.push(amount);
+    } else {
+      trendMap.set(key, [amount]);
+    }
+  }
+
+  return trendMap;
+}
+
+function buildInvoiceRows(invoices: InvoiceApiResponse[], vendors: VendorApiResponse[]): InvoiceRow[] {
+  const vendorsById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+  const trendMap = buildSpendTrendMap(invoices);
+
+  return invoices.map((invoice) => {
+    const vendor = invoice.vendor_id ? vendorsById.get(invoice.vendor_id) : undefined;
+    const status = toStatus(invoice.status);
+    const amountValue = decimalToNumber(invoice.total) ?? 0;
+    const vendorScore = vendor ? trustScoreToPercent(vendor.trust_score) : null;
+    const computedScore = typeof invoice.confidence_score === 'number'
+      ? clampScore(invoice.confidence_score)
+      : getFallbackScore(invoice, status);
+    const trustScoreValue = vendorScore ?? computedScore;
+    const trend = trendMap.get(getVendorKey(invoice)) ?? [amountValue];
+    const spendTrend = (trend.length < 2 ? [amountValue, amountValue] : trend).slice(-5);
+
+    return {
+      id: invoice.id,
+      date: invoice.created_at?.slice(0, 10) ?? '',
+      invoiceNumber: invoice.invoice_number?.trim() || invoice.id.slice(0, 8).toUpperCase(),
+      vendor: vendor?.name || invoice.vendor_name?.trim() || 'Unknown Vendor',
+      amountValue,
+      amount: formatCurrencyValue(invoice.total, invoice.currency),
+      status,
+      trustScore: toTrustGrade(trustScoreValue),
+      trustScoreValue,
+      spendTrend,
+    };
+  });
+}
+
 export default function History() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{ key: HistorySortKey; direction: SortDirection } | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [invoicesError, setInvoicesError] = useState<string | null>(null);
   const itemsPerPage = 8;
+
+  const loadHistory = useCallback(async () => {
+    setInvoicesLoading(true);
+    setInvoicesError(null);
+    try {
+      const [fetchedInvoices, fetchedVendors] = await Promise.all([fetchInvoices(), fetchVendors()]);
+      setInvoices(buildInvoiceRows(fetchedInvoices, fetchedVendors));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setInvoicesError(message);
+      setInvoices([]);
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   const getTrustScoreStyles = (score: string) => {
     if (score.startsWith('A')) {
@@ -117,13 +238,14 @@ export default function History() {
   };
 
   const filteredInvoices = useMemo(() => {
-    return mockInvoices.filter((invoice) => {
+    const query = searchTerm.toLowerCase();
+    return invoices.filter((invoice) => {
       return (
-        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.vendor.toLowerCase().includes(searchTerm.toLowerCase())
+        invoice.invoiceNumber.toLowerCase().includes(query) ||
+        invoice.vendor.toLowerCase().includes(query)
       );
     });
-  }, [searchTerm]);
+  }, [invoices, searchTerm]);
 
   const sortedInvoices = useMemo(() => {
     if (!sortConfig) {
@@ -144,7 +266,7 @@ export default function History() {
           comparison = a.vendor.localeCompare(b.vendor);
           break;
         case 'amount':
-          comparison = parseCurrency(a.amount) - parseCurrency(b.amount);
+          comparison = a.amountValue - b.amountValue;
           break;
         case 'trustScore':
           comparison = trustScoreRank(a.trustScore) - trustScoreRank(b.trustScore);
@@ -159,6 +281,13 @@ export default function History() {
 
     return sorted;
   }, [filteredInvoices, sortConfig]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sortedInvoices.length / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [currentPage, sortedInvoices.length]);
 
   const totalPages = Math.ceil(sortedInvoices.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -319,7 +448,23 @@ export default function History() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedInvoices.map((invoice, index) => {
+                {invoicesLoading && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-14 text-center text-[#71717A] text-sm">
+                      Loading invoice history...
+                    </td>
+                  </tr>
+                )}
+
+                {!invoicesLoading && invoicesError && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-14 text-center text-[#FF6B8A] text-sm">
+                      Failed to load invoice history.
+                    </td>
+                  </tr>
+                )}
+
+                {!invoicesLoading && !invoicesError && paginatedInvoices.map((invoice, index) => {
                   const statusStyles = getStatusStyles(invoice.status);
                   const trustStyles = getTrustScoreStyles(invoice.trustScore);
                   return (
@@ -370,6 +515,7 @@ export default function History() {
                       <td className="px-4 py-4">
                         <button
                           className="p-2 text-[#00F2FF] rounded-lg transition-all"
+                          onClick={() => navigate(`/reviews/${invoice.id}`)}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(0, 242, 255, 0.08)';
                           }}
@@ -383,6 +529,14 @@ export default function History() {
                     </tr>
                   );
                 })}
+
+                {!invoicesLoading && !invoicesError && paginatedInvoices.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-14 text-center text-[#52525B] text-sm">
+                      No invoices found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -395,7 +549,9 @@ export default function History() {
             }}
           >
             <div className="text-xs text-[#71717A]">
-              Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedInvoices.length)} of {sortedInvoices.length}
+              {sortedInvoices.length === 0
+                ? 'No results'
+                : `Showing ${startIndex + 1}-${Math.min(startIndex + itemsPerPage, sortedInvoices.length)} of ${sortedInvoices.length}`}
             </div>
 
             <div className="flex gap-1">
@@ -437,7 +593,7 @@ export default function History() {
 
               <button
                 onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === totalPages || totalPages === 0}
                 className="p-2 rounded-lg text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{
                   background: 'rgba(20, 22, 25, 0.6)',

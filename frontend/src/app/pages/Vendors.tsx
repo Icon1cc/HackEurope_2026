@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
@@ -10,7 +10,16 @@ import {
   ChevronRight,
   ShieldCheck,
 } from 'lucide-react';
-import { mockVendors } from '../data/mockVendors';
+import {
+  decimalToNumber,
+  fetchInvoices,
+  fetchVendors,
+  formatCurrencyValue,
+  trustScoreToPercent,
+  type InvoiceApiResponse,
+  type VendorApiResponse,
+} from '../api/backend';
+import { isProcessedStatus } from '../data/reviewTypes';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 // Smooth color interpolation: red -> amber -> cyan -> green
@@ -27,11 +36,6 @@ function getScoreColor(score: number): string {
   if (s <= 50) return lerpHex('#FF0055', '#FFB800', s / 50);
   if (s <= 75) return lerpHex('#FFB800', '#00F2FF', (s - 50) / 25);
   return lerpHex('#00F2FF', '#00FF94', (s - 75) / 25);
-}
-
-function parseCurrency(value: string): number {
-  const numericValue = Number(value.replace(/[^0-9.-]/g, ''));
-  return Number.isNaN(numericValue) ? 0 : numericValue;
 }
 
 const TrustScoreBar = ({ score }: { score: number }) => {
@@ -63,12 +67,139 @@ const ITEMS_PER_PAGE = 10;
 type VendorSortKey = 'name' | 'category' | 'paid' | 'pending' | 'rejected' | 'totalAmount' | 'trustScore';
 type SortDirection = 'asc' | 'desc';
 
+interface VendorRow {
+  id: string;
+  name: string;
+  category: string;
+  paid: number;
+  pending: number;
+  rejected: number;
+  totalAmountValue: number;
+  totalAmount: string;
+  trustScore: number;
+}
+
+function groupInvoicesByVendorId(invoices: InvoiceApiResponse[]): Map<string, InvoiceApiResponse[]> {
+  const grouped = new Map<string, InvoiceApiResponse[]>();
+  for (const invoice of invoices) {
+    if (!invoice.vendor_id) {
+      continue;
+    }
+    const existing = grouped.get(invoice.vendor_id);
+    if (existing) {
+      existing.push(invoice);
+    } else {
+      grouped.set(invoice.vendor_id, [invoice]);
+    }
+  }
+  return grouped;
+}
+
+function groupInvoicesByVendorName(invoices: InvoiceApiResponse[]): Map<string, InvoiceApiResponse[]> {
+  const grouped = new Map<string, InvoiceApiResponse[]>();
+  for (const invoice of invoices) {
+    const vendorName = invoice.vendor_name?.trim().toLowerCase();
+    if (!vendorName) {
+      continue;
+    }
+    const existing = grouped.get(vendorName);
+    if (existing) {
+      existing.push(invoice);
+    } else {
+      grouped.set(vendorName, [invoice]);
+    }
+  }
+  return grouped;
+}
+
+function classifyInvoiceStatus(status: string | null | undefined): 'paid' | 'pending' | 'rejected' {
+  const normalized = status?.trim().toLowerCase() ?? '';
+  if (normalized === 'rejected' || normalized === 'overcharge') {
+    return 'rejected';
+  }
+  if (isProcessedStatus(normalized)) {
+    return 'paid';
+  }
+  return 'pending';
+}
+
+function pickPrimaryCurrency(invoices: InvoiceApiResponse[]): string {
+  const frequency = new Map<string, number>();
+  for (const invoice of invoices) {
+    const currency = invoice.currency?.trim().toUpperCase();
+    if (!currency) {
+      continue;
+    }
+    frequency.set(currency, (frequency.get(currency) ?? 0) + 1);
+  }
+
+  let selected = 'USD';
+  let maxCount = 0;
+  for (const [currency, count] of frequency.entries()) {
+    if (count > maxCount) {
+      maxCount = count;
+      selected = currency;
+    }
+  }
+  return selected;
+}
+
+function toVendorRows(vendors: VendorApiResponse[], invoices: InvoiceApiResponse[]): VendorRow[] {
+  const invoicesByVendorId = groupInvoicesByVendorId(invoices);
+  const invoicesByVendorName = groupInvoicesByVendorName(invoices);
+
+  return vendors.map((vendor) => {
+    const invoicesById = invoicesByVendorId.get(vendor.id) ?? [];
+    const vendorNameKey = vendor.name.trim().toLowerCase();
+    const invoicesByName = invoicesByVendorName.get(vendorNameKey) ?? [];
+    const vendorInvoices = [
+      ...invoicesById,
+      ...invoicesByName.filter((invoice) => !invoice.vendor_id),
+    ];
+
+    let paid = 0;
+    let pending = 0;
+    let rejected = 0;
+    let totalAmountValue = 0;
+
+    for (const invoice of vendorInvoices) {
+      const status = classifyInvoiceStatus(invoice.status);
+      if (status === 'paid') {
+        paid += 1;
+      } else if (status === 'rejected') {
+        rejected += 1;
+      } else {
+        pending += 1;
+      }
+
+      totalAmountValue += decimalToNumber(invoice.total) ?? 0;
+    }
+
+    const primaryCurrency = pickPrimaryCurrency(vendorInvoices);
+
+    return {
+      id: vendor.id,
+      name: vendor.name,
+      category: vendor.category?.trim() || 'Uncategorized',
+      paid,
+      pending,
+      rejected,
+      totalAmountValue,
+      totalAmount: formatCurrencyValue(totalAmountValue, primaryCurrency),
+      trustScore: trustScoreToPercent(vendor.trust_score),
+    };
+  });
+}
+
 export default function Vendors() {
   const language = useAppLanguage();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{ key: VendorSortKey; direction: SortDirection } | null>(null);
+  const [vendors, setVendors] = useState<VendorRow[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [vendorsError, setVendorsError] = useState<string | null>(null);
 
   const copy = {
     fr: {
@@ -83,6 +214,8 @@ export default function Vendors() {
       tableTotal: 'Montant total',
       tableTrust: 'Trust Score',
       noResult: 'Aucun vendor ne correspond à votre recherche.',
+      loadingVendors: 'Chargement des vendors...',
+      vendorsLoadFailed: 'Impossible de charger les vendors.',
       paginationSur: 'sur',
       paginationVendors: 'vendors',
       paginationNoResult: 'Aucun résultat',
@@ -99,6 +232,8 @@ export default function Vendors() {
       tableTotal: 'Total amount',
       tableTrust: 'Trust Score',
       noResult: 'No vendor matches your search.',
+      loadingVendors: 'Loading vendors...',
+      vendorsLoadFailed: 'Failed to load vendors.',
       paginationSur: 'of',
       paginationVendors: 'vendors',
       paginationNoResult: 'No results',
@@ -115,20 +250,39 @@ export default function Vendors() {
       tableTotal: 'Gesamtbetrag',
       tableTrust: 'Trust Score',
       noResult: 'Kein Lieferant entspricht Ihrer Suche.',
+      loadingVendors: 'Lieferanten werden geladen...',
+      vendorsLoadFailed: 'Lieferanten konnten nicht geladen werden.',
       paginationSur: 'von',
       paginationVendors: 'Lieferanten',
       paginationNoResult: 'Keine Ergebnisse',
     },
   }[language];
 
+  const loadVendors = useCallback(async () => {
+    setVendorsLoading(true);
+    setVendorsError(null);
+    try {
+      const [fetchedVendors, fetchedInvoices] = await Promise.all([fetchVendors(), fetchInvoices()]);
+      setVendors(toVendorRows(fetchedVendors, fetchedInvoices));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setVendorsError(message);
+      setVendors([]);
+    } finally {
+      setVendorsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadVendors();
+  }, [loadVendors]);
+
   const filtered = useMemo(() => {
-    return mockVendors.filter((vendor) => {
-      return (
-        vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        vendor.category.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    const search = searchTerm.toLowerCase();
+    return vendors.filter((vendor) => {
+      return vendor.name.toLowerCase().includes(search) || vendor.category.toLowerCase().includes(search);
     });
-  }, [searchTerm]);
+  }, [searchTerm, vendors]);
 
   const sorted = useMemo(() => {
     if (!sortConfig) {
@@ -155,7 +309,7 @@ export default function Vendors() {
           comparison = a.rejected - b.rejected;
           break;
         case 'totalAmount':
-          comparison = parseCurrency(a.totalAmount) - parseCurrency(b.totalAmount);
+          comparison = a.totalAmountValue - b.totalAmountValue;
           break;
         case 'trustScore':
           comparison = a.trustScore - b.trustScore;
@@ -167,6 +321,13 @@ export default function Vendors() {
 
     return sortedList;
   }, [filtered, sortConfig]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [currentPage, sorted.length]);
 
   const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -309,7 +470,23 @@ export default function Vendors() {
               </thead>
 
               <tbody>
-                {paginated.map((vendor, index) => (
+                {vendorsLoading && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-14 text-center text-[#71717A] text-sm">
+                      {copy.loadingVendors}
+                    </td>
+                  </tr>
+                )}
+
+                {!vendorsLoading && vendorsError && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-14 text-center text-[#FF6B8A] text-sm">
+                      {copy.vendorsLoadFailed}
+                    </td>
+                  </tr>
+                )}
+
+                {!vendorsLoading && !vendorsError && paginated.map((vendor, index) => (
                   <tr
                     key={vendor.id}
                     className="transition-all duration-200 cursor-pointer"
@@ -387,7 +564,7 @@ export default function Vendors() {
                   </tr>
                 ))}
 
-                {paginated.length === 0 && (
+                {!vendorsLoading && !vendorsError && paginated.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-14 text-center text-[#52525B] text-sm">
                       <ShieldCheck className="w-8 h-8 mx-auto mb-3 text-[#27272A]" />

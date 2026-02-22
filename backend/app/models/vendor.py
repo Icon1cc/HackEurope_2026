@@ -10,7 +10,7 @@ from app.core.database import Base
 #   "invoice_number": "INV-2026-001",
 #   "invoice_date": "February 21, 2026",
 #   "due_date": null,
-#   "vendor_name": "Cloud Services Provider Ltd.",
+#   "vendor_name": "Example Vendor GmbH",
 #   "vendor_address": "123 Tech Park, Silicon Valley, CA 94043",
 #   "client_name": "Example Corp.",
 #   "client_address": "456 Business Blvd, New York, NY 10001",

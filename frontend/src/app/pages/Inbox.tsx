@@ -25,7 +25,7 @@ const inboxItems: InboxItem[] = [
   },
   { 
     id: '2', 
-    vendor: 'Cloud Services Ltd', 
+    vendor: 'PlatformOps AG', 
     amount: '$8,900.00', 
     date: '2026-02-18', 
     status: 'escalated',

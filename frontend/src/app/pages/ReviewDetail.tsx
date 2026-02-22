@@ -4,62 +4,170 @@ import { AlertTriangle, CheckCircle2, FileText, Send, XCircle, ArrowLeft, Shield
 import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
-import { pendingReviews } from '../data/pendingReviews';
-import { findUploadedReview } from '../data/uploadedReviews';
-import { mockVendorInvoices, mockVendors } from '../data/mockVendors';
+import { fetchInvoiceById, formatCurrencyValue, type InvoiceApiResponse } from '../api/backend';
+import { buildFallbackEmail, extractReviewReasons, invoiceNumberOrFallback, isProcessedStatus } from '../data/reviewTypes';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
+
+interface LineItemView {
+  description: string;
+  amount: string;
+}
+
+interface ReviewViewModel {
+  id: string;
+  invoiceNumber: string;
+  vendor: string;
+  amount: string;
+  date: string;
+  contactEmail: string;
+  reasons: {
+    fr: string[];
+    en: string[];
+    de: string[];
+  };
+  emailDraft: {
+    fr: string;
+    en: string;
+    de: string;
+  };
+  isReview: boolean;
+  rawStatus: string;
+  vendorAddress: string;
+  lineItems: LineItemView[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
+  if (invoice.items.length > 0) {
+    return invoice.items.map((item) => ({
+      description: item.description || 'Line item',
+      amount: formatCurrencyValue(item.total_price, invoice.currency),
+    }));
+  }
+
+  if (isRecord(invoice.extracted_data) && Array.isArray(invoice.extracted_data.line_items)) {
+    const extractedItems = invoice.extracted_data.line_items
+      .map((item) => {
+        if (!isRecord(item)) {
+          return null;
+        }
+        const description = typeof item.description === 'string' && item.description.trim().length > 0
+          ? item.description.trim()
+          : 'Line item';
+        const totalPrice = typeof item.total_price === 'number' || typeof item.total_price === 'string'
+          ? item.total_price
+          : null;
+        return {
+          description,
+          amount: formatCurrencyValue(totalPrice, invoice.currency),
+        };
+      })
+      .filter((item): item is LineItemView => item !== null);
+
+    if (extractedItems.length > 0) {
+      return extractedItems;
+    }
+  }
+
+  return [
+    {
+      description: 'Line item',
+      amount: formatCurrencyValue(invoice.total, invoice.currency),
+    },
+  ];
+}
+
+function buildEmailDraft(invoiceNumber: string, vendorName: string, reasons: string[]): ReviewViewModel['emailDraft'] {
+  const bulletPoints = reasons.map((reason) => `- ${reason}`).join('\n');
+  return {
+    en: `Hello,\n\nWe are reviewing invoice ${invoiceNumber} from ${vendorName}. Before approval, we need clarification on the following points:\n${bulletPoints}\n\nPlease confirm and share supporting details.\n\nBest regards,\nAccounts Payable Team`,
+    fr: `Bonjour,\n\nNous examinons la facture ${invoiceNumber} de ${vendorName}. Avant validation, nous avons besoin d'une clarification sur les points suivants :\n${bulletPoints}\n\nMerci de confirmer et de partager les éléments justificatifs.\n\nCordialement,\nÉquipe Accounts Payable`,
+    de: `Hallo,\n\nwir prüfen die Rechnung ${invoiceNumber} von ${vendorName}. Vor der Freigabe benötigen wir eine Klärung zu folgenden Punkten:\n${bulletPoints}\n\nBitte bestätigen Sie die Punkte und senden Sie die entsprechenden Nachweise.\n\nMit freundlichen Grüßen,\nTeam Kreditorenbuchhaltung`,
+  };
+}
+
+function toLocalizedReasons(reasons: string[]): ReviewViewModel['reasons'] {
+  return {
+    fr: reasons,
+    en: reasons,
+    de: reasons,
+  };
+}
+
+function toReviewViewModel(invoice: InvoiceApiResponse): ReviewViewModel {
+  const invoiceNumber = invoiceNumberOrFallback(invoice);
+  const vendorName = invoice.vendor_name?.trim() || 'Unknown Vendor';
+  const reasons = isProcessedStatus(invoice.status)
+    ? ['Invoice approved and processed.']
+    : extractReviewReasons(invoice);
+
+  return {
+    id: invoice.id,
+    invoiceNumber,
+    vendor: vendorName,
+    amount: formatCurrencyValue(invoice.total, invoice.currency),
+    date: invoice.created_at?.slice(0, 10) ?? '',
+    contactEmail: buildFallbackEmail(vendorName),
+    reasons: toLocalizedReasons(reasons),
+    emailDraft: isProcessedStatus(invoice.status)
+      ? {
+          en: 'Draft not available for processed invoices.',
+          fr: 'Brouillon non disponible pour les factures traitées.',
+          de: 'Entwurf für bearbeitete Rechnungen nicht verfügbar.',
+        }
+      : buildEmailDraft(invoiceNumber, vendorName, reasons),
+    isReview: !isProcessedStatus(invoice.status),
+    rawStatus: invoice.status,
+    vendorAddress: invoice.vendor_address?.trim() || 'Address unavailable',
+    lineItems: toLineItems(invoice),
+  };
+}
 
 export default function ReviewDetail() {
   const { reviewId } = useParams();
   const language = useAppLanguage();
-  
-  const review = useMemo(() => {
-    // 1. Try to find in pendingReviews
-    const pending = pendingReviews.find((item) => item.id === reviewId);
-    if (pending) return { ...pending, isReview: true };
+  const [invoice, setInvoice] = useState<InvoiceApiResponse | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(true);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const review = useMemo(() => (invoice ? toReviewViewModel(invoice) : null), [invoice]);
 
-    // 2. Try to find in uploaded reviews from extraction API
-    if (reviewId) {
-      const uploadedReview = findUploadedReview(reviewId);
-      if (uploadedReview) {
-        return { ...uploadedReview, isReview: true };
+  useEffect(() => {
+    if (!reviewId) {
+      setInvoice(null);
+      setInvoiceLoading(false);
+      setInvoiceError('Missing invoice id');
+      return;
+    }
+
+    let cancelled = false;
+    const loadInvoice = async () => {
+      setInvoiceLoading(true);
+      setInvoiceError(null);
+      try {
+        const fetchedInvoice = await fetchInvoiceById(reviewId);
+        if (!cancelled) {
+          setInvoice(fetchedInvoice);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          setInvoiceError(message);
+          setInvoice(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setInvoiceLoading(false);
+        }
       }
-    }
+    };
 
-    // 3. Try to find in mockVendorInvoices
-    const invoice = mockVendorInvoices.find((item) => item.id === reviewId);
-    if (invoice) {
-      const vendor = mockVendors.find(v => v.id === invoice.vendorId);
-      return {
-        id: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        vendor: vendor?.name || 'Unknown Vendor',
-        amount: invoice.amount,
-        date: invoice.date,
-        status: invoice.status === 'flagged' ? 'pending' : (invoice.status === 'rejected' ? 'escalated' : 'paid'),
-        contactEmail: `billing@${(vendor?.name || 'vendor').toLowerCase().replace(/\s+/g, '')}.com`,
-        reasons: {
-          fr: invoice.status === 'paid' ? ['Facture approuvée et payée.'] : 
-              invoice.status === 'pending' ? ['Facture en cours de traitement.'] : 
-              ['Anomalie détectée par le système.'],
-          en: invoice.status === 'paid' ? ['Invoice approved and paid.'] : 
-              invoice.status === 'pending' ? ['Invoice currently being processed.'] : 
-              ['Anomaly detected by the system.'],
-          de: invoice.status === 'paid' ? ['Rechnung genehmigt und bezahlt.'] : 
-              invoice.status === 'pending' ? ['Rechnung wird zur Zeit bearbeitet.'] : 
-              ['Vom System erkannte Anomalie.']
-        },
-        emailDraft: {
-          fr: 'Brouillon non disponible pour les factures traitées.',
-          en: 'Draft not available for processed invoices.',
-          de: 'Entwurf für bearbeitete Rechnungen nicht verfügbar.'
-        },
-        isReview: false,
-        rawStatus: invoice.status
-      };
-    }
-
-    return null;
+    void loadInvoice();
+    return () => {
+      cancelled = true;
+    };
   }, [reviewId]);
 
   const [recipientEmail, setRecipientEmail] = useState('');
@@ -92,6 +200,7 @@ export default function ReviewDetail() {
       processingFinishedDesc: 'Cette facture a déjà été traitée par le système. Aucune action manuelle n\'est requise.',
       invoiceNotFound: 'Facture introuvable',
       invoiceNotFoundDesc: 'La facture demandée n\'existe pas ou a été supprimée.',
+      invoiceLoading: 'Chargement de la facture...',
       approveFeedback: (num: string) => `Facture ${num} approuvée telle quelle.`,
       rejectFeedback: (num: string, email: string) => `Facture ${num} rejetée. Email de négociation prêt à l'envoi vers ${email}.`,
     },
@@ -120,6 +229,7 @@ export default function ReviewDetail() {
       processingFinishedDesc: 'This invoice has already been processed by the system. No manual action is required.',
       invoiceNotFound: 'Invoice not found',
       invoiceNotFoundDesc: 'The requested invoice does not exist or has been deleted.',
+      invoiceLoading: 'Loading invoice...',
       approveFeedback: (num: string) => `Invoice ${num} approved as is.`,
       rejectFeedback: (num: string, email: string) => `Invoice ${num} rejected. Negotiation email ready to send to ${email}.`,
     },
@@ -148,6 +258,7 @@ export default function ReviewDetail() {
       processingFinishedDesc: 'Diese Rechnung wurde bereits vom System verarbeitet. Keine manuelle Aktion erforderlich.',
       invoiceNotFound: 'Rechnung nicht gefunden',
       invoiceNotFoundDesc: 'Die angeforderte Rechnung existiert nicht oder wurde gelöscht.',
+      invoiceLoading: 'Rechnung wird geladen...',
       approveFeedback: (num: string) => `Rechnung ${num} wie vorliegend genehmigt.`,
       rejectFeedback: (num: string, email: string) => `Rechnung ${num} abgelehnt. Verhandlungs-E-Mail bereit zum Versand an ${email}.`,
     }
@@ -159,9 +270,23 @@ export default function ReviewDetail() {
     }
 
     setRecipientEmail(review.contactEmail);
-    setNegotiationEmail((review.emailDraft as any)[language]);
+    setNegotiationEmail(review.emailDraft[language]);
     setActionFeedback(null);
   }, [review, language]);
+
+  if (invoiceLoading) {
+    return (
+      <div className="flex min-h-screen relative overflow-hidden">
+        <VercelBackground />
+        <Sidebar />
+        <main className="flex-1 lg:ml-64 p-8 relative z-10 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-[#71717A]">{copy.invoiceLoading}</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!review) {
     return (
@@ -181,7 +306,7 @@ export default function ReviewDetail() {
             >
               {copy.invoiceNotFound}
             </h1>
-            <p className="text-[#71717A] mb-6">{copy.invoiceNotFoundDesc}</p>
+            <p className="text-[#71717A] mb-6">{invoiceError ?? copy.invoiceNotFoundDesc}</p>
             <Link
               to="/dashboard"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all"
@@ -209,7 +334,7 @@ export default function ReviewDetail() {
   };
 
   // Get reasons based on current language
-  const currentReasons = (review.reasons as any)[language] || [];
+  const currentReasons = review.reasons[language] || [];
 
   return (
     <div className="flex min-h-screen relative overflow-hidden">
@@ -232,7 +357,7 @@ export default function ReviewDetail() {
               >
                 {review.isReview ? copy.reviewTitle : copy.title} {review.invoiceNumber}
               </h1>
-              {review.rawStatus === 'paid' && (
+              {isProcessedStatus(review.rawStatus) && (
                 <span className="px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider bg-[#00FF94]/10 text-[#00FF94] border border-[#00FF94]/20 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" /> {copy.paidStatus}
                 </span>
@@ -293,8 +418,8 @@ export default function ReviewDetail() {
                 <div className="min-w-[500px] sm:min-w-0 max-w-3xl mx-auto bg-white rounded-lg p-6 sm:p-10 text-left shadow-2xl">
                   <div className="border-b border-gray-300 pb-5 mb-6">
                     <h3 className="text-2xl text-gray-900 font-bold mb-2">{review.vendor}</h3>
-                    <p className="text-sm text-gray-600">123 Business Street, Tech City, TC 12345</p>
-                    <p className="text-sm text-gray-600">{review.contactEmail} • +1 (555) 123-4567</p>
+                    <p className="text-sm text-gray-600">{review.vendorAddress}</p>
+                    <p className="text-sm text-gray-600">{review.contactEmail}</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-8 mb-8">
@@ -316,14 +441,12 @@ export default function ReviewDetail() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td className="py-3 text-gray-900">{copy.professionalServices}</td>
-                        <td className="text-right text-gray-900 font-semibold">{review.amount}</td>
-                      </tr>
-                      <tr>
-                        <td className="py-3 text-gray-900">{copy.platformSubscription}</td>
-                        <td className="text-right text-gray-900 font-semibold">{copy.included}</td>
-                      </tr>
+                      {review.lineItems.map((lineItem, index) => (
+                        <tr key={`${review.id}-${index}`}>
+                          <td className="py-3 text-gray-900">{lineItem.description}</td>
+                          <td className="text-right text-gray-900 font-semibold">{lineItem.amount}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
 
@@ -361,12 +484,12 @@ export default function ReviewDetail() {
                 }}
               >
                 <div className="text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-3">
-                  {review.rawStatus === 'paid' ? copy.processingStatus : copy.blockingReasons}
+                  {isProcessedStatus(review.rawStatus) ? copy.processingStatus : copy.blockingReasons}
                 </div>
                 <ul className="space-y-2">
                   {currentReasons.map((reason: string, index: number) => (
                     <li key={`${review.id}-${index}`} className="flex items-start gap-2 text-sm text-[#E4E4E7] leading-relaxed">
-                      {review.rawStatus === 'paid' ? (
+                      {isProcessedStatus(review.rawStatus) ? (
                         <ShieldCheck className="w-4 h-4 text-[#00FF94] mt-0.5 flex-shrink-0" />
                       ) : (
                         <AlertTriangle className="w-4 h-4 text-[#FFB800] mt-0.5 flex-shrink-0" />
