@@ -1,0 +1,64 @@
+{
+  "run_at": "2026-02-21T22:46:07.408132+00:00",
+  "total_records": 35,
+  "total_warnings": 0,
+  "warnings": [],
+  "sources": [
+    {
+      "file": "raw_1_infracost.json",
+      "source_api": "infracost",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    },
+    {
+      "file": "raw_2_aws_ec2.json",
+      "source_api": "aws_ec2",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    },
+    {
+      "file": "raw_3_aws_s3.json",
+      "source_api": "aws_s3",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    },
+    {
+      "file": "raw_4_aws_rds.json",
+      "source_api": "aws_rds",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    },
+    {
+      "file": "raw_5_aws_cloudfront.json",
+      "source_api": "aws_cloudfront",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    },
+    {
+      "file": "raw_6_azure.json",
+      "source_api": "azure",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    },
+    {
+      "file": "raw_7_gcp.json",
+      "source_api": "gcp",
+      "status": "ok",
+      "records_in": 5,
+      "records_out": 5,
+      "warnings": []
+    }
+  ]
+}
