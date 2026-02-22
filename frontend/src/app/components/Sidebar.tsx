@@ -173,7 +173,7 @@ export function Sidebar() {
           <Link to="/dashboard" className="flex items-center gap-3 group" onClick={() => setIsOpen(false)}>
             <img 
               src="/logo.svg" 
-              alt="InvoiceGuard Logo" 
+              alt="FairPay Agent Logo"
               className="w-10 h-auto"
             />
             <span 
@@ -185,7 +185,7 @@ export function Sidebar() {
                 color: '#FAFAFA',
               }}
             >
-              InvoiceGuard
+              FairPay Agent
             </span>
           </Link>
         </div>

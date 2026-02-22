@@ -84,7 +84,7 @@ export default function SignIn() {
               <div className="relative">
                 <img 
                   src="/logo.svg" 
-                  alt="InvoiceGuard Logo" 
+                  alt="FairPay Agent Logo"
                   className="w-24 h-auto relative z-10"
                   style={{
                     animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
@@ -102,7 +102,7 @@ export default function SignIn() {
                 color: '#FAFAFA',
               }}
             >
-              InvoiceGuard
+              FairPay Agent
             </h1>
             <p className="text-[#71717A] text-sm">
               {copy.tagline}

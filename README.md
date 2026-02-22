@@ -1,6 +1,6 @@
 # InvoiceGuard
 
-Autonomous AI protection for accounts payable. InvoiceGuard ingests cloud vendor invoices (PDF/image), extracts structured data via Gemini, and runs a deterministic rubric scoring pipeline — comparing each line item against real-time market prices and historical vendor data. Suspicious invoices are flagged for human review or auto-escalated with a Gemini-drafted renegotiation email.
+Autonomous AI protection for accounts payable. InvoiceGuard ingests cloud vendor invoices (PDF/image), extracts structured data via Gemini, and runs a deterministic rubric scoring pipeline — comparing each line item against real-time market prices and historical vendor data. Suspicious invoices are flagged for human review or auto-escalated with a Claude-drafted renegotiation email.
 
 ## Quick Start
 
