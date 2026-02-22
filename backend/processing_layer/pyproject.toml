@@ -1,0 +1,19 @@
+[project]
+name = "processing-layer"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "google-genai>=1.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+testing = ["fiftyone", "huggingface_hub>=0.20.0", "jupyterlab", "Pillow", "pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
