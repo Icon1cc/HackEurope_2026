@@ -46,6 +46,13 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 
+def _exception_message(exc: Exception) -> str:
+    message = str(exc).strip()
+    if not message:
+        return exc.__class__.__name__
+    return message[:300]
+
+
 @router.post("/")
 async def extract_invoice(
     file: UploadFile = File(...),
@@ -70,24 +77,39 @@ async def extract_invoice(
         raise HTTPException(status_code=400, detail="Empty file uploaded")
 
     loop = asyncio.get_event_loop()
-    provider = get_provider("gemini")
+    try:
+        provider = get_provider("gemini")
+    except Exception as exc:
+        logger.exception("Failed to initialize extraction provider")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Extraction provider unavailable: {_exception_message(exc)}",
+        ) from exc
+
     extractor = InvoiceExtractor(provider)
 
     is_pdf = file.content_type == "application/pdf"
 
-    if is_pdf:
-        extraction = await loop.run_in_executor(
-            _executor,
-            extractor.extract_from_pdf,
-            file_bytes,
-        )
-    else:
-        extraction = await loop.run_in_executor(
-            _executor,
-            extractor.extract_from_image,
-            file_bytes,
-            file.content_type,
-        )
+    try:
+        if is_pdf:
+            extraction = await loop.run_in_executor(
+                _executor,
+                extractor.extract_from_pdf,
+                file_bytes,
+            )
+        else:
+            extraction = await loop.run_in_executor(
+                _executor,
+                extractor.extract_from_image,
+                file_bytes,
+                file.content_type,
+            )
+    except Exception as exc:
+        logger.exception("Invoice extraction failed for file %s", file.filename)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invoice extraction failed: {_exception_message(exc)}",
+        ) from exc
 
     vendor = await _get_or_create_vendor(
         db=db,

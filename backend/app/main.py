@@ -1,6 +1,8 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import router
 from app.core.database import init_db, close_db
 from app.core.config import get_settings
@@ -28,6 +30,29 @@ async def lifespan(app: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+
+def _get_cors_origins() -> list[str]:
+    raw_origins = os.getenv("BACKEND_CORS_ORIGINS")
+    if raw_origins:
+        parsed = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+        if parsed:
+            return parsed
+    return [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(router)
 

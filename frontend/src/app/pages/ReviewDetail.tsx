@@ -5,6 +5,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
 import { pendingReviews } from '../data/pendingReviews';
+import { findUploadedReview } from '../data/uploadedReviews';
 import { mockVendorInvoices, mockVendors } from '../data/mockVendors';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
@@ -17,7 +18,15 @@ export default function ReviewDetail() {
     const pending = pendingReviews.find((item) => item.id === reviewId);
     if (pending) return { ...pending, isReview: true };
 
-    // 2. Try to find in mockVendorInvoices
+    // 2. Try to find in uploaded reviews from extraction API
+    if (reviewId) {
+      const uploadedReview = findUploadedReview(reviewId);
+      if (uploadedReview) {
+        return { ...uploadedReview, isReview: true };
+      }
+    }
+
+    // 3. Try to find in mockVendorInvoices
     const invoice = mockVendorInvoices.find((item) => item.id === reviewId);
     if (invoice) {
       const vendor = mockVendors.find(v => v.id === invoice.vendorId);

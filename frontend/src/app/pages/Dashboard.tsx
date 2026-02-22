@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   TrendingUp,
   Upload,
@@ -16,14 +16,33 @@ import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
 import { pendingReviews } from '../data/pendingReviews';
+import { uploadInvoiceForExtraction } from '../api/extraction';
+import { buildUploadOutcome, loadUploadedReviews, saveUploadedReview } from '../data/uploadedReviews';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 const chartVolumes = [45, 52, 48, 65, 58, 70, 75];
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_MIME_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
+const ACCEPTED_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'webp'];
 
 export default function Dashboard() {
   const language = useAppLanguage();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [panelOpen,  setPanelOpen]  = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [uploadedPendingReviews, setUploadedPendingReviews] = useState(() => loadUploadedReviews());
+
+  const dashboardReviews = useMemo(() => {
+    const reviewsById = new Map<string, (typeof pendingReviews)[number]>();
+    for (const review of [...uploadedPendingReviews, ...pendingReviews]) {
+      reviewsById.set(review.id, review);
+    }
+    return [...reviewsById.values()];
+  }, [uploadedPendingReviews]);
+
   const copy = {
     fr: {
       months: ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.'],
@@ -37,10 +56,16 @@ export default function Dashboard() {
       processInvoice: 'Traiter une facture',
       dropInvoice: 'Dépose un PDF ici ou clique pour parcourir',
       fileFormatHint: 'Taille max: 10MB • PDF, PNG, JPG',
+      uploadingLabel: 'Extraction en cours...',
+      fileTooLarge: 'Le fichier dépasse 10MB.',
+      invalidFileType: 'Format non supporté. Utilise PDF, PNG, JPG ou WEBP.',
+      uploadErrorPrefix: 'Échec de l’extraction :',
+      uploadSuccessReview: (invoiceNumber: string) => `Facture ${invoiceNumber} extraite. Revue ajoutée.`,
+      uploadSuccessApproved: (invoiceNumber: string) => `Facture ${invoiceNumber} extraite et approuvée automatiquement.`,
       pendingTabLabel: 'Revues',
       openPendingReviews: 'Ouvrir les revues en attente',
       pendingReviews: 'Revues en attente',
-      pendingInvoicesCount: `${pendingReviews.length} factures en attente`,
+      pendingInvoicesCount: (count: number) => `${count} factures en attente`,
       closePanel: 'Fermer le panneau',
       statusPending: 'en attente',
       statusEscalated: 'escaladé',
@@ -57,10 +82,16 @@ export default function Dashboard() {
       processInvoice: 'Process Invoice',
       dropInvoice: 'Drop PDF invoice here or click to browse',
       fileFormatHint: 'Maximum file size: 10MB • Supports PDF, PNG, JPG',
+      uploadingLabel: 'Running extraction...',
+      fileTooLarge: 'The selected file exceeds 10MB.',
+      invalidFileType: 'Unsupported format. Use PDF, PNG, JPG, or WEBP.',
+      uploadErrorPrefix: 'Extraction failed:',
+      uploadSuccessReview: (invoiceNumber: string) => `Invoice ${invoiceNumber} extracted. Review added.`,
+      uploadSuccessApproved: (invoiceNumber: string) => `Invoice ${invoiceNumber} extracted and auto-approved.`,
       pendingTabLabel: 'Reviews',
       openPendingReviews: 'Open pending reviews',
       pendingReviews: 'Pending Reviews',
-      pendingInvoicesCount: `${pendingReviews.length} invoices pending`,
+      pendingInvoicesCount: (count: number) => `${count} invoices pending`,
       closePanel: 'Close panel',
       statusPending: 'pending',
       statusEscalated: 'escalated',
@@ -77,10 +108,16 @@ export default function Dashboard() {
       processInvoice: 'Rechnung verarbeiten',
       dropInvoice: 'PDF hier ablegen oder zum Durchsuchen klicken',
       fileFormatHint: 'Max. Größe: 10MB • PDF, PNG, JPG',
+      uploadingLabel: 'Extraktion läuft...',
+      fileTooLarge: 'Die ausgewählte Datei ist größer als 10MB.',
+      invalidFileType: 'Nicht unterstütztes Format. Verwende PDF, PNG, JPG oder WEBP.',
+      uploadErrorPrefix: 'Extraktion fehlgeschlagen:',
+      uploadSuccessReview: (invoiceNumber: string) => `Rechnung ${invoiceNumber} extrahiert. Prüfung hinzugefügt.`,
+      uploadSuccessApproved: (invoiceNumber: string) => `Rechnung ${invoiceNumber} extrahiert und automatisch freigegeben.`,
       pendingTabLabel: 'Prüfungen',
       openPendingReviews: 'Ausstehende Prüfungen öffnen',
       pendingReviews: 'Ausstehende Prüfungen',
-      pendingInvoicesCount: `${pendingReviews.length} Rechnungen ausstehend`,
+      pendingInvoicesCount: (count: number) => `${count} Rechnungen ausstehend`,
       closePanel: 'Panel schließen',
       statusPending: 'ausstehend',
       statusEscalated: 'eskaliert',
@@ -90,17 +127,90 @@ export default function Dashboard() {
   const getStatusLabel = (status: 'pending' | 'escalated') =>
     status === 'escalated' ? copy.statusEscalated : copy.statusPending;
 
+  const isAcceptedFile = (file: File): boolean => {
+    if (ACCEPTED_MIME_TYPES.has(file.type)) {
+      return true;
+    }
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    return ACCEPTED_EXTENSIONS.includes(extension);
+  };
+
+  const openFileDialog = () => {
+    if (!uploading) {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const runUpload = async (file: File) => {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      setUploadSuccess(null);
+      setUploadError(copy.fileTooLarge);
+      return;
+    }
+    if (!isAcceptedFile(file)) {
+      setUploadSuccess(null);
+      setUploadError(copy.invalidFileType);
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    try {
+      const response = await uploadInvoiceForExtraction(file);
+      const outcome = buildUploadOutcome(response);
+
+      if (outcome.kind === 'requires_review') {
+        const nextReviews = saveUploadedReview(outcome.review);
+        setUploadedPendingReviews(nextReviews);
+        setPanelOpen(true);
+        setUploadSuccess(copy.uploadSuccessReview(outcome.review.invoiceNumber));
+      } else {
+        setUploadSuccess(copy.uploadSuccessApproved(outcome.invoiceNumber));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setUploadError(`${copy.uploadErrorPrefix} ${message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile) {
+      void runUpload(selectedFile);
+    }
+    event.target.value = '';
+  };
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
-    else if (e.type === 'dragleave') setDragActive(false);
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      void runUpload(droppedFile);
+    }
+  };
+
+  const handleUploadKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openFileDialog();
+    }
   };
 
   return (
@@ -212,6 +322,14 @@ export default function Dashboard() {
           className="rounded-xl p-4 sm:p-6 backdrop-blur-[20px]"
           style={{ background: 'rgba(20, 22, 25, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.1)' }}
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={uploading}
+          />
           <div className="flex items-center gap-3 mb-4">
             <Zap className="w-5 h-5 text-[#00F2FF]" />
             <h2 className="text-lg" style={{ fontFamily: 'Geist Sans, Inter, sans-serif', fontWeight: 600, letterSpacing: '-0.02em' }}>
@@ -223,6 +341,11 @@ export default function Dashboard() {
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
+            onClick={openFileDialog}
+            onKeyDown={handleUploadKeyDown}
+            role="button"
+            tabIndex={0}
+            aria-busy={uploading}
             className="border border-dashed rounded-xl p-8 sm:p-12 text-center transition-all cursor-pointer"
             style={
               dragActive
@@ -231,9 +354,15 @@ export default function Dashboard() {
             }
           >
             <Upload className="w-16 h-16 text-[#00F2FF] mx-auto mb-4" strokeWidth={1.5} />
-            <p className="text-[#FAFAFA] text-base mb-2 font-medium">{copy.dropInvoice}</p>
+            <p className="text-[#FAFAFA] text-base mb-2 font-medium">{uploading ? copy.uploadingLabel : copy.dropInvoice}</p>
             <p className="text-[#71717A] text-sm">{copy.fileFormatHint}</p>
           </div>
+          {uploadError && (
+            <p className="mt-3 text-sm text-[#FF6B8A]">{uploadError}</p>
+          )}
+          {uploadSuccess && (
+            <p className="mt-3 text-sm text-[#00FF94]">{uploadSuccess}</p>
+          )}
         </div>
 
         <Footer />
@@ -271,7 +400,7 @@ export default function Dashboard() {
             border: '1px solid rgba(0, 242, 255, 0.3)',
           }}
         >
-          {pendingReviews.length}
+          {dashboardReviews.length}
         </span>
 
         {/* Vertical Text Label */}
@@ -324,7 +453,7 @@ export default function Dashboard() {
               >
                 {copy.pendingReviews}
               </h2>
-              <p className="text-[11px] text-[#71717A] mt-0.5">{copy.pendingInvoicesCount}</p>
+              <p className="text-[11px] text-[#71717A] mt-0.5">{copy.pendingInvoicesCount(dashboardReviews.length)}</p>
             </div>
           </div>
 
@@ -340,7 +469,7 @@ export default function Dashboard() {
 
         {/* Panel body — scrollable */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
-          {pendingReviews.map((review) => (
+          {dashboardReviews.map((review) => (
             <Link
               key={review.id}
               to={`/reviews/${review.id}`}
