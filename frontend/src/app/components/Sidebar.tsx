@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { LayoutDashboard, Users, Settings, Shield, Menu, X, LogOut, ChevronUp, ChevronRight, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Menu, X, LogOut, ChevronUp, ChevronRight, Building2 } from 'lucide-react';
 import { loadAppSettings } from '../data/appSettings';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 import { pendingReviews } from '../data/pendingReviews';
@@ -58,15 +58,20 @@ export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
-  const copy = language === 'fr'
-    ? {
-        nav: { dashboard: 'Dashboard', vendors: 'Fournisseurs' },
-        userMenu: { settings: 'Paramètres', signOut: 'Déconnexion' },
-      }
-    : {
-        nav: { dashboard: 'Dashboard', vendors: 'Vendors' },
-        userMenu: { settings: 'Settings', signOut: 'Sign out' },
-      };
+  const copy = {
+    fr: {
+      nav: { dashboard: 'Dashboard', vendors: 'Fournisseurs' },
+      userMenu: { settings: 'Paramètres', signOut: 'Déconnexion' },
+    },
+    en: {
+      nav: { dashboard: 'Dashboard', vendors: 'Vendors' },
+      userMenu: { settings: 'Settings', signOut: 'Sign out' },
+    },
+    de: {
+      nav: { dashboard: 'Dashboard', vendors: 'Lieferanten' },
+      userMenu: { settings: 'Einstellungen', signOut: 'Abmelden' },
+    },
+  }[language];
   const [user, setUser] = useState(() => {
     const settings = loadAppSettings();
     return {
@@ -150,15 +155,15 @@ export function Sidebar() {
           borderRight: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
-        {/* Logo */}
         <div 
           className="p-6 border-b"
           style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}
         >
           <Link to="/dashboard" className="flex items-center gap-3 group" onClick={() => setIsOpen(false)}>
-            <Shield 
-              className="w-8 h-8 text-[#00F2FF]" 
-              strokeWidth={1.5}
+            <img 
+              src="/logo.svg" 
+              alt="InvoiceGuard Logo" 
+              className="w-10 h-auto"
             />
             <span 
               className="text-xl"

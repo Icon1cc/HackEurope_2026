@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Shield, Mail, Lock } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { VercelBackground } from '../components/VercelBackground';
 import { Footer } from '../components/Footer';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
@@ -10,27 +10,38 @@ export default function SignIn() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const copy = language === 'fr'
-    ? {
-        tagline: 'Protection IA autonome pour la comptabilite fournisseurs',
-        email: 'Email',
-        emailPlaceholder: 'vous@entreprise.com',
-        password: 'Mot de passe',
-        forgotPassword: 'Mot de passe oublie ?',
-        signIn: 'Se connecter',
-        noAccount: "Vous n'avez pas de compte ?",
-        requestAccess: "Demander l'acces",
-      }
-    : {
-        tagline: 'Autonomous AI Protection for Accounts Payable',
-        email: 'Email',
-        emailPlaceholder: 'you@company.com',
-        password: 'Password',
-        forgotPassword: 'Forgot password?',
-        signIn: 'Sign In',
-        noAccount: "Don't have an account?",
-        requestAccess: 'Request Access',
-      };
+  const copy = {
+    fr: {
+      tagline: 'Protection IA autonome pour la comptabilité fournisseurs',
+      email: 'Email',
+      emailPlaceholder: 'vous@entreprise.com',
+      password: 'Mot de passe',
+      forgotPassword: 'Mot de passe oublié ?',
+      signIn: 'Se connecter',
+      noAccount: "Vous n'avez pas de compte ?",
+      requestAccess: "Demander l'accès",
+    },
+    en: {
+      tagline: 'Autonomous AI Protection for Accounts Payable',
+      email: 'Email',
+      emailPlaceholder: 'you@company.com',
+      password: 'Password',
+      forgotPassword: 'Forgot password?',
+      signIn: 'Sign In',
+      noAccount: "Don't have an account?",
+      requestAccess: 'Request Access',
+    },
+    de: {
+      tagline: 'Autonomer KI-Schutz für die Kreditorenbuchhaltung',
+      email: 'E-Mail',
+      emailPlaceholder: 'sie@unternehmen.de',
+      password: 'Passwort',
+      forgotPassword: 'Passwort vergessen?',
+      signIn: 'Anmelden',
+      noAccount: 'Sie haben noch keinen Account?',
+      requestAccess: 'Zugang anfordern',
+    },
+  }[language];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,41 +75,18 @@ export default function SignIn() {
                     animationDuration: '3s'
                   }}
                 />
-                <div 
-                  className="absolute w-24 h-24 rounded-full animate-ping"
-                  style={{
-                    border: '1px solid #00F2FF',
-                    opacity: 0.3,
-                    animationDuration: '2s',
-                    animationDelay: '0.5s'
-                  }}
-                />
               </div>
 
-              {/* Logo shield */}
-              <div className="relative w-20 h-20">
-                <Shield 
-                  className="w-20 h-20 text-[#00F2FF] relative z-10" 
-                  strokeWidth={1.5}
+              {/* Logo image */}
+              <div className="relative">
+                <img 
+                  src="/logo.svg" 
+                  alt="InvoiceGuard Logo" 
+                  className="w-24 h-auto relative z-10"
                   style={{
-                    filter: 'drop-shadow(0 0 15px rgba(0, 242, 255, 0.5))',
                     animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
                   }}
                 />
-                
-                {/* Scanning line */}
-                <div 
-                  className="absolute inset-0 overflow-hidden"
-                  style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' }}
-                >
-                  <div 
-                    className="absolute w-full h-0.5 bg-gradient-to-r from-transparent via-[#00F2FF] to-transparent"
-                    style={{
-                      animation: 'scan 3s linear infinite',
-                      filter: 'blur(1px)',
-                    }}
-                  />
-                </div>
               </div>
             </div>
 

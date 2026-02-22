@@ -6,9 +6,11 @@ import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
 import { pendingReviews } from '../data/pendingReviews';
 import { mockVendorInvoices, mockVendors } from '../data/mockVendors';
+import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 export default function ReviewDetail() {
   const { reviewId } = useParams();
+  const language = useAppLanguage();
   
   const review = useMemo(() => {
     // 1. Try to find in pendingReviews
@@ -33,11 +35,15 @@ export default function ReviewDetail() {
               ['Anomalie détectée par le système.'],
           en: invoice.status === 'paid' ? ['Invoice approved and paid.'] : 
               invoice.status === 'pending' ? ['Invoice currently being processed.'] : 
-              ['Anomaly detected by the system.']
+              ['Anomaly detected by the system.'],
+          de: invoice.status === 'paid' ? ['Rechnung genehmigt und bezahlt.'] : 
+              invoice.status === 'pending' ? ['Rechnung wird zur Zeit bearbeitet.'] : 
+              ['Vom System erkannte Anomalie.']
         },
         emailDraft: {
           fr: 'Brouillon non disponible pour les factures traitées.',
-          en: 'Draft not available for processed invoices.'
+          en: 'Draft not available for processed invoices.',
+          de: 'Entwurf für bearbeitete Rechnungen nicht verfügbar.'
         },
         isReview: false,
         rawStatus: invoice.status
@@ -51,16 +57,102 @@ export default function ReviewDetail() {
   const [negotiationEmail, setNegotiationEmail] = useState('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
+  const copy = {
+    fr: {
+      title: 'Facture',
+      reviewTitle: 'Review',
+      paidStatus: 'PAYÉE',
+      backToDashboard: 'Retour au dashboard',
+      previewTitle: 'Aperçu de la facture',
+      invoiceNumber: 'Numéro de facture',
+      date: 'Date',
+      description: 'Description',
+      amount: 'Montant',
+      professionalServices: 'Services Professionnels',
+      platformSubscription: 'Abonnement Plateforme',
+      included: 'Inclus',
+      totalDue: 'Total dû',
+      decisionPanel: 'Panneau de décision',
+      processingStatus: 'Statut du traitement',
+      blockingReasons: 'Raisons du blocage',
+      recipient: 'Destinataire',
+      emailDraft: 'Brouillon d\'email de négociation',
+      approve: 'Approuver la facture',
+      reject: 'Rejeter & Envoyer Email',
+      processingFinished: 'Traitement terminé',
+      processingFinishedDesc: 'Cette facture a déjà été traitée par le système. Aucune action manuelle n\'est requise.',
+      invoiceNotFound: 'Facture introuvable',
+      invoiceNotFoundDesc: 'La facture demandée n\'existe pas ou a été supprimée.',
+      approveFeedback: (num: string) => `Facture ${num} approuvée telle quelle.`,
+      rejectFeedback: (num: string, email: string) => `Facture ${num} rejetée. Email de négociation prêt à l'envoi vers ${email}.`,
+    },
+    en: {
+      title: 'Invoice',
+      reviewTitle: 'Review',
+      paidStatus: 'PAID',
+      backToDashboard: 'Back to dashboard',
+      previewTitle: 'Invoice Preview',
+      invoiceNumber: 'Invoice Number',
+      date: 'Date',
+      description: 'Description',
+      amount: 'Amount',
+      professionalServices: 'Professional Services',
+      platformSubscription: 'Platform Subscription',
+      included: 'Included',
+      totalDue: 'Total Due',
+      decisionPanel: 'Decision Panel',
+      processingStatus: 'Processing Status',
+      blockingReasons: 'Blocking Reasons',
+      recipient: 'Recipient',
+      emailDraft: 'Negotiation Email Draft',
+      approve: 'Approve Invoice',
+      reject: 'Reject & Send Email',
+      processingFinished: 'Processing Finished',
+      processingFinishedDesc: 'This invoice has already been processed by the system. No manual action is required.',
+      invoiceNotFound: 'Invoice not found',
+      invoiceNotFoundDesc: 'The requested invoice does not exist or has been deleted.',
+      approveFeedback: (num: string) => `Invoice ${num} approved as is.`,
+      rejectFeedback: (num: string, email: string) => `Invoice ${num} rejected. Negotiation email ready to send to ${email}.`,
+    },
+    de: {
+      title: 'Rechnung',
+      reviewTitle: 'Prüfung',
+      paidStatus: 'BEZAHLT',
+      backToDashboard: 'Zurück zum Dashboard',
+      previewTitle: 'Rechnungsvorschau',
+      invoiceNumber: 'Rechnungsnummer',
+      date: 'Datum',
+      description: 'Beschreibung',
+      amount: 'Betrag',
+      professionalServices: 'Professionelle Dienstleistungen',
+      platformSubscription: 'Plattform-Abonnement',
+      included: 'Inklusive',
+      totalDue: 'Gesamtbetrag',
+      decisionPanel: 'Entscheidungspanel',
+      processingStatus: 'Verarbeitungsstatus',
+      blockingReasons: 'Gründe für die Blockierung',
+      recipient: 'Empfänger',
+      emailDraft: 'Entwurf Verhandlungs-E-Mail',
+      approve: 'Rechnung genehmigen',
+      reject: 'Ablehnen & E-Mail senden',
+      processingFinished: 'Verarbeitung abgeschlossen',
+      processingFinishedDesc: 'Diese Rechnung wurde bereits vom System verarbeitet. Keine manuelle Aktion erforderlich.',
+      invoiceNotFound: 'Rechnung nicht gefunden',
+      invoiceNotFoundDesc: 'Die angeforderte Rechnung existiert nicht oder wurde gelöscht.',
+      approveFeedback: (num: string) => `Rechnung ${num} wie vorliegend genehmigt.`,
+      rejectFeedback: (num: string, email: string) => `Rechnung ${num} abgelehnt. Verhandlungs-E-Mail bereit zum Versand an ${email}.`,
+    }
+  }[language];
+
   useEffect(() => {
     if (!review) {
       return;
     }
 
     setRecipientEmail(review.contactEmail);
-    // Use FR by default for the draft as per project context (French project)
-    setNegotiationEmail((review.emailDraft as any).fr || (review.emailDraft as any).en);
+    setNegotiationEmail((review.emailDraft as any)[language]);
     setActionFeedback(null);
-  }, [review]);
+  }, [review, language]);
 
   if (!review) {
     return (
@@ -78,9 +170,9 @@ export default function ReviewDetail() {
                 color: '#FAFAFA',
               }}
             >
-              Facture introuvable
+              {copy.invoiceNotFound}
             </h1>
-            <p className="text-[#71717A] mb-6">La facture demandée n'existe pas ou a été supprimée.</p>
+            <p className="text-[#71717A] mb-6">{copy.invoiceNotFoundDesc}</p>
             <Link
               to="/dashboard"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all"
@@ -91,7 +183,7 @@ export default function ReviewDetail() {
               }}
             >
               <ArrowLeft className="w-4 h-4" />
-              Retour au dashboard
+              {copy.backToDashboard}
             </Link>
           </div>
         </main>
@@ -100,17 +192,15 @@ export default function ReviewDetail() {
   }
 
   const handleApprove = () => {
-    setActionFeedback(`Facture ${review.invoiceNumber} approuvée telle quelle.`);
+    setActionFeedback(copy.approveFeedback(review.invoiceNumber));
   };
 
   const handleRejectAndSend = () => {
-    setActionFeedback(
-      `Facture ${review.invoiceNumber} rejetée. Email de négociation prêt à l'envoi vers ${recipientEmail}.`,
-    );
+    setActionFeedback(copy.rejectFeedback(review.invoiceNumber, recipientEmail));
   };
 
-  // Get reasons based on current language (simplified to FR for this step)
-  const currentReasons = (review.reasons as any).fr || (review.reasons as any).en || [];
+  // Get reasons based on current language
+  const currentReasons = (review.reasons as any)[language] || [];
 
   return (
     <div className="flex min-h-screen relative overflow-hidden">
@@ -131,11 +221,11 @@ export default function ReviewDetail() {
                   color: '#FAFAFA',
                 }}
               >
-                Facture {review.invoiceNumber}
+                {review.isReview ? copy.reviewTitle : copy.title} {review.invoiceNumber}
               </h1>
               {review.rawStatus === 'paid' && (
                 <span className="px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider bg-[#00FF94]/10 text-[#00FF94] border border-[#00FF94]/20 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> PAYÉE
+                  <ShieldCheck className="w-3 h-3" /> {copy.paidStatus}
                 </span>
               )}
             </div>
@@ -154,7 +244,7 @@ export default function ReviewDetail() {
             }}
           >
             <ArrowLeft className="w-4 h-4" />
-            Retour au dashboard
+            {copy.backToDashboard}
           </Link>
         </div>
 
@@ -177,7 +267,7 @@ export default function ReviewDetail() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Aperçu de la facture
+                  {copy.previewTitle}
                 </h2>
                 <p className="text-xs sm:text-sm text-[#71717A]">
                   {review.vendor} • {review.invoiceNumber}
@@ -200,11 +290,11 @@ export default function ReviewDetail() {
 
                   <div className="grid grid-cols-2 gap-8 mb-8">
                     <div>
-                      <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Numéro de facture</div>
+                      <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">{copy.invoiceNumber}</div>
                       <div className="text-gray-900 font-semibold">{review.invoiceNumber}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Date</div>
+                      <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">{copy.date}</div>
                       <div className="text-gray-900 font-semibold">{review.date}</div>
                     </div>
                   </div>
@@ -212,24 +302,24 @@ export default function ReviewDetail() {
                   <table className="w-full mb-8">
                     <thead>
                       <tr className="border-b-2 border-gray-300">
-                        <th className="text-left py-3 text-sm text-gray-700 font-bold">Description</th>
-                        <th className="text-right py-3 text-sm text-gray-700 font-bold">Montant</th>
+                        <th className="text-left py-3 text-sm text-gray-700 font-bold">{copy.description}</th>
+                        <th className="text-right py-3 text-sm text-gray-700 font-bold">{copy.amount}</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
-                        <td className="py-3 text-gray-900">Services Professionnels</td>
+                        <td className="py-3 text-gray-900">{copy.professionalServices}</td>
                         <td className="text-right text-gray-900 font-semibold">{review.amount}</td>
                       </tr>
                       <tr>
-                        <td className="py-3 text-gray-900">Abonnement Plateforme</td>
-                        <td className="text-right text-gray-900 font-semibold">Inclus</td>
+                        <td className="py-3 text-gray-900">{copy.platformSubscription}</td>
+                        <td className="text-right text-gray-900 font-semibold">{copy.included}</td>
                       </tr>
                     </tbody>
                   </table>
 
                   <div className="border-t-2 border-gray-300 pt-6 flex justify-between items-center">
-                    <span className="text-lg sm:text-xl text-gray-900 font-bold">Total dû</span>
+                    <span className="text-lg sm:text-xl text-gray-900 font-bold">{copy.totalDue}</span>
                     <span className="text-3xl sm:text-4xl text-gray-900 font-bold">{review.amount}</span>
                   </div>
                 </div>
@@ -250,7 +340,7 @@ export default function ReviewDetail() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Panneau de décision
+                  {copy.decisionPanel}
                 </h2>
               </div>
 
@@ -262,7 +352,7 @@ export default function ReviewDetail() {
                 }}
               >
                 <div className="text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-3">
-                  {review.rawStatus === 'paid' ? 'Statut du traitement' : 'Raisons du blocage'}
+                  {review.rawStatus === 'paid' ? copy.processingStatus : copy.blockingReasons}
                 </div>
                 <ul className="space-y-2">
                   {currentReasons.map((reason: string, index: number) => (
@@ -288,7 +378,7 @@ export default function ReviewDetail() {
                     }}
                   >
                     <label htmlFor="recipient-email" className="block text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-2">
-                      Destinataire
+                      {copy.recipient}
                     </label>
                     <input
                       id="recipient-email"
@@ -303,7 +393,7 @@ export default function ReviewDetail() {
                     />
 
                     <label htmlFor="negotiation-email" className="block text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-2">
-                      Brouillon d'email de négociation
+                      {copy.emailDraft}
                     </label>
                     <textarea
                       id="negotiation-email"
@@ -330,7 +420,7 @@ export default function ReviewDetail() {
                       }}
                     >
                       <CheckCircle2 className="w-5 h-5" />
-                      <span>Approuver la facture</span>
+                      <span>{copy.approve}</span>
                     </button>
 
                     <button
@@ -346,7 +436,7 @@ export default function ReviewDetail() {
                     >
                       <XCircle className="w-5 h-5" />
                       <Send className="w-4 h-4" />
-                      <span>Rejeter & Envoyer Email</span>
+                      <span>{copy.reject}</span>
                     </button>
                   </div>
                 </>
@@ -361,9 +451,9 @@ export default function ReviewDetail() {
                   }}
                 >
                   <ShieldCheck className="w-12 h-12 text-[#00FF94] mx-auto mb-3 opacity-50" />
-                  <p className="text-sm text-[#FAFAFA] font-medium mb-1">Traitement terminé</p>
+                  <p className="text-sm text-[#FAFAFA] font-medium mb-1">{copy.processingFinished}</p>
                   <p className="text-xs text-[#71717A]">
-                    Cette facture a déjà été traitée par le système. Aucune action manuelle n'est requise.
+                    {copy.processingFinishedDesc}
                   </p>
                 </div>
               )}

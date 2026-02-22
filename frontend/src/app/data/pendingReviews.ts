@@ -32,10 +32,15 @@ export const pendingReviews: PendingReview[] = [
         "The amount is 20% above this vendor's average over the last 6 months.",
         'The related purchase order was not found in the period records.',
       ],
+      de: [
+        'Der Betrag liegt 20% über dem Durchschnitt dieses Lieferanten in den letzten 6 Monaten.',
+        'Die zugehörige Bestellung wurde in den Unterlagen für diesen Zeitraum nicht gefunden.',
+      ],
     },
     emailDraft: {
       fr: `Bonjour,\n\nNous avons bien reçu la facture INV-2391. Avant validation, nous avons besoin d'une clarification sur l'écart de montant constaté par rapport à vos dernières factures.\n\nPouvez-vous confirmer le périmètre exact des prestations facturées et partager le bon de commande correspondant ?\n\nMerci d'avance pour votre retour rapide.\n\nCordialement,\nÉquipe Accounts Payable`,
       en: `Hello,\n\nWe have received invoice INV-2391. Before validation, we need clarification regarding the amount variance identified compared with your recent invoices.\n\nCould you confirm the exact scope of billed services and share the corresponding purchase order?\n\nThank you in advance for your prompt response.\n\nBest regards,\nAccounts Payable Team`,
+      de: `Hallo,\n\nwir haben die Rechnung INV-2391 erhalten. Vor der Validierung benötigen wir eine Klärung der festgestellten Betragsabweichung im Vergleich zu Ihren letzten Rechnungen.\n\nKönnen Sie den genauen Umfang der abgerechneten Leistungen bestätigen und die entsprechende Bestellung mitsenden?\n\nVielen Dank im Voraus für Ihre schnelle Rückmeldung.\n\nMit freundlichen Grüßen,\nIhr Kreditorenbuchhaltungs-Team`,
     },
   },
   {
@@ -49,16 +54,18 @@ export const pendingReviews: PendingReview[] = [
     reasons: {
       fr: ['Les coordonnées bancaires de la facture ne correspondent pas aux coordonnées habituelles du fournisseur.'],
       en: ['The bank details on this invoice do not match the vendor details on record.'],
+      de: ['Die Bankverbindung auf dieser Rechnung stimmt nicht mit den hinterlegten Lieferantendaten überein.'],
     },
     emailDraft: {
       fr: `Bonjour,\n\nNous traitons actuellement la facture INV-2388. Une divergence a été détectée sur les informations bancaires fournies.\n\nMerci de confirmer officiellement les coordonnées de paiement à utiliser pour cette facture, ainsi que la personne de contact côté finance.\n\nDans l'attente de votre confirmation, nous gardons la facture en attente de validation.\n\nCordialement,\nÉquipe Accounts Payable`,
       en: `Hello,\n\nWe are currently processing invoice INV-2388. A discrepancy was detected in the banking details provided.\n\nPlease officially confirm the payment details to use for this invoice, along with the appropriate finance contact.\n\nUntil confirmation is received, we will keep the invoice pending validation.\n\nBest regards,\nAccounts Payable Team`,
+      de: `Hallo,\n\nwir bearbeiten derzeit die Rechnung INV-2388. Es wurde eine Diskrepanz in den angegebenen Bankverbindungsdaten festgestellt.\n\nBitte bestätigen Sie offiziell die für diese Rechnung zu verwendenden Zahlungsdaten sowie den entsprechenden Ansprechpartner in der Finanzabteilung.\n\nBis zum Eingang Ihrer Bestätigung halten wir die Rechnung zur Validierung zurück.\n\nMit freundlichen Grüßen,\nIhr Kreditorenbuchhaltungs-Team`,
     },
   },
   {
     id: 'review-3',
     invoiceNumber: 'INV-2379',
-    vendor: 'Marketing Pro',
+    vendor: 'Marketing Pro Agency',
     amount: '$15,200.00',
     date: '2026-02-17',
     status: 'pending',
@@ -72,10 +79,15 @@ export const pendingReviews: PendingReview[] = [
         'A similar invoice (same amount and same period) was already submitted recently.',
         'Line-item descriptions are too generic for reliable accounting validation.',
       ],
+      de: [
+        'Eine ähnliche Rechnung (gleicher Betrag und gleicher Zeitraum) wurde bereits kürzlich eingereicht.',
+        'Die Beschreibungen der Rechnungsposten sind zu allgemein für eine zuverlässige buchhalterische Validierung.',
+      ],
     },
     emailDraft: {
       fr: `Bonjour,\n\nNous avons besoin d'une précision avant validation de la facture INV-2379. Une possible duplication a été détectée avec une facture récente sur la même période.\n\nMerci de confirmer si cette facture remplace un envoi précédent ou s'il s'agit d'une prestation différente, avec le détail des livrables associés.\n\nNous pourrons finaliser la validation dès réception de ces éléments.\n\nCordialement,\nÉquipe Accounts Payable`,
       en: `Hello,\n\nWe need clarification before validating invoice INV-2379. A possible duplicate was detected with a recent invoice for the same period.\n\nPlease confirm whether this invoice replaces a previous submission or covers a different service, and share the related deliverable details.\n\nWe can finalize validation as soon as we receive this information.\n\nBest regards,\nAccounts Payable Team`,
+      de: `Hallo,\n\nwir benötigen eine Klärung, bevor wir die Rechnung INV-2379 validieren können. Es wurde ein möglicher Duplikatseintrag mit einer kürzlich eingegangenen Rechnung für denselben Zeitraum festgestellt.\n\nBitte bestätigen Sie, ob diese Rechnung eine frühere Einreichung ersetzt oder eine andere Dienstleistung abdeckt, und teilen Sie uns die entsprechenden Details zu den erbrachten Leistungen mit.\n\nSobald wir diese Informationen erhalten haben, können wir die Validierung abschließen.\n\nMit freundlichen Grüßen,\nIhr Kreditorenbuchhaltungs-Team`,
     },
   },
 ];

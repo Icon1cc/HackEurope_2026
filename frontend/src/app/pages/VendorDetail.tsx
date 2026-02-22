@@ -14,6 +14,7 @@ import {
   Clock,
   XCircle,
 } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { mockVendors, mockVendorInvoices } from '../data/mockVendors';
 import type { VendorInvoice } from '../data/mockVendors';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
@@ -43,6 +44,19 @@ function parseCurrency(value: string): number {
   return Number.isNaN(numericValue) ? 0 : numericValue;
 }
 
+function getInvoiceScore(invoice: VendorInvoice): number {
+  const baseScoreByStatus: Record<VendorInvoice['status'], number> = {
+    paid: 92,
+    pending: 66,
+    flagged: 44,
+    rejected: 28,
+  };
+  const numericId = Number(invoice.id.replace(/\D/g, ''));
+  const variance = Number.isNaN(numericId) ? 0 : (numericId % 7) - 3;
+  const score = baseScoreByStatus[invoice.status] + variance;
+  return Math.max(0, Math.min(100, score));
+}
+
 const getStatusStyles = (status: VendorInvoice['status']) => {
   switch (status) {
     case 'paid':
@@ -68,43 +82,87 @@ export default function VendorDetail() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{ key: InvoiceSortKey; direction: SortDirection } | null>(null);
 
-  const copy = language === 'fr'
-    ? {
-        notFound: 'Vendor introuvable.',
-        backToVendors: 'Retour aux vendors',
-        vendors: 'Vendors',
-        totalInvoices: 'Total factures',
-        paid: 'Payees',
-        processing: 'En cours',
-        rejected: 'Rejetees',
-        searchPlaceholder: 'Rechercher par numero de facture...',
-        tableDate: 'Date',
-        tableInvoice: 'Facture #',
-        tableAmount: 'Montant',
-        tableStatus: 'Statut',
-        noResult: 'Aucune facture ne correspond a votre recherche.',
-        paginationSur: 'sur',
-        paginationInvoices: 'factures',
-        paginationNoResult: 'Aucun resultat',
-      }
-    : {
-        notFound: 'Vendor not found.',
-        backToVendors: 'Back to vendors',
-        vendors: 'Vendors',
-        totalInvoices: 'Total invoices',
-        paid: 'Paid',
-        processing: 'Pending',
-        rejected: 'Rejected',
-        searchPlaceholder: 'Search by invoice number...',
-        tableDate: 'Date',
-        tableInvoice: 'Invoice #',
-        tableAmount: 'Amount',
-        tableStatus: 'Status',
-        noResult: 'No invoice matches your search.',
-        paginationSur: 'of',
-        paginationInvoices: 'invoices',
-        paginationNoResult: 'No results',
-      };
+  const copy = {
+    fr: {
+      notFound: 'Vendor introuvable.',
+      backToVendors: 'Retour aux vendors',
+      vendors: 'Vendors',
+      totalInvoices: 'Total factures',
+      paid: 'Payées',
+      processing: 'En cours',
+      rejected: 'Rejetées',
+      searchPlaceholder: 'Rechercher par numéro de facture...',
+      tableDate: 'Date',
+      tableInvoice: 'Facture #',
+      tableAmount: 'Montant',
+      tableStatus: 'Statut',
+      chartTitle: 'Score des factures dans le temps',
+      chartSubtitle: 'Évolution du score de confiance pour chaque facture',
+      chartLatest: 'Dernière facture',
+      chartAverage: 'Moyenne',
+      chartTooltipScore: 'Score facture',
+      noResult: 'Aucune facture ne correspond à votre recherche.',
+      paginationSur: 'sur',
+      paginationInvoices: 'factures',
+      paginationNoResult: 'Aucun résultat',
+    },
+    en: {
+      notFound: 'Vendor not found.',
+      backToVendors: 'Back to vendors',
+      vendors: 'Vendors',
+      totalInvoices: 'Total invoices',
+      paid: 'Paid',
+      processing: 'Pending',
+      rejected: 'Rejected',
+      searchPlaceholder: 'Search by invoice number...',
+      tableDate: 'Date',
+      tableInvoice: 'Invoice #',
+      tableAmount: 'Amount',
+      tableStatus: 'Status',
+      chartTitle: 'Invoice score over time',
+      chartSubtitle: 'Trust score trend across vendor invoices',
+      chartLatest: 'Latest invoice',
+      chartAverage: 'Average',
+      chartTooltipScore: 'Invoice score',
+      noResult: 'No invoice matches your search.',
+      paginationSur: 'of',
+      paginationInvoices: 'invoices',
+      paginationNoResult: 'No results',
+    },
+    de: {
+      notFound: 'Lieferant nicht gefunden.',
+      backToVendors: 'Zurück zu Lieferanten',
+      vendors: 'Lieferanten',
+      totalInvoices: 'Gesamt Rechnungen',
+      paid: 'Bezahlt',
+      processing: 'Ausstehend',
+      rejected: 'Abgelehnt',
+      searchPlaceholder: 'Suche nach Rechnungsnummer...',
+      tableDate: 'Datum',
+      tableInvoice: 'Rechnung #',
+      tableAmount: 'Betrag',
+      tableStatus: 'Status',
+      chartTitle: 'Rechnungs-Score im Zeitverlauf',
+      chartSubtitle: 'Trend des Vertrauens-Scores über Lieferantenrechnungen',
+      chartLatest: 'Letzte Rechnung',
+      chartAverage: 'Durchschnitt',
+      chartTooltipScore: 'Rechnungs-Score',
+      noResult: 'Keine Rechnung entspricht Ihrer Suche.',
+      paginationSur: 'von',
+      paginationInvoices: 'Rechnungen',
+      paginationNoResult: 'Keine Ergebnisse',
+    },
+  }[language];
+
+  const scoreTrendData = useMemo(() => {
+    return [...allInvoices]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((invoice) => ({
+        date: invoice.date,
+        invoiceNumber: invoice.invoiceNumber,
+        score: getInvoiceScore(invoice),
+      }));
+  }, [allInvoices]);
 
   const filtered = useMemo(() => {
     return allInvoices.filter((invoice) => {
@@ -163,6 +221,12 @@ export default function VendorDetail() {
   }
 
   const scoreColor = getScoreColor(vendor.trustScore);
+  const lineGradientId = `invoice-score-line-gradient-${vendor.id}`;
+  const glowGradientId = `invoice-score-glow-gradient-${vendor.id}`;
+  const latestInvoiceScore = scoreTrendData.at(-1)?.score ?? vendor.trustScore;
+  const averageInvoiceScore = scoreTrendData.length === 0
+    ? 0
+    : Math.round(scoreTrendData.reduce((sum, point) => sum + point.score, 0) / scoreTrendData.length);
 
   const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -195,6 +259,17 @@ export default function VendorDetail() {
     }
 
     return sortConfig.direction === 'asc' ? '▲' : '▼';
+  };
+
+  const formatTrendDate = (value: string): string => {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return language === 'fr'
+      ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+      : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -288,6 +363,116 @@ export default function VendorDetail() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div
+          className="rounded-xl p-4 sm:p-6 mb-6 backdrop-blur-[20px]"
+          style={{
+            background: 'rgba(20, 22, 25, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
+            <div>
+              <h2
+                className="text-lg sm:text-xl"
+                style={{
+                  fontFamily: 'Geist Sans, Inter, sans-serif',
+                  fontWeight: 600,
+                  letterSpacing: '-0.02em',
+                  color: '#FAFAFA',
+                }}
+              >
+                {copy.chartTitle}
+              </h2>
+              <p className="text-xs sm:text-sm text-[#71717A] mt-1">{copy.chartSubtitle}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className="px-2.5 py-1 rounded-md"
+                style={{ background: 'rgba(0, 242, 255, 0.08)', border: '1px solid rgba(0, 242, 255, 0.25)', color: '#00F2FF' }}
+              >
+                {copy.chartLatest}: <strong className="font-semibold">{latestInvoiceScore}/100</strong>
+              </span>
+              <span
+                className="px-2.5 py-1 rounded-md"
+                style={{ background: 'rgba(0, 255, 148, 0.08)', border: '1px solid rgba(0, 255, 148, 0.25)', color: '#00FF94' }}
+              >
+                {copy.chartAverage}: <strong className="font-semibold">{averageInvoiceScore}/100</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="h-56 sm:h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={scoreTrendData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+                <defs>
+                  <linearGradient id={lineGradientId} x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor="#FF0055" />
+                    <stop offset="35%" stopColor="#FFB800" />
+                    <stop offset="70%" stopColor="#00F2FF" />
+                    <stop offset="100%" stopColor="#00FF94" />
+                  </linearGradient>
+                  <linearGradient id={glowGradientId} x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor="rgba(255, 0, 85, 0.24)" />
+                    <stop offset="35%" stopColor="rgba(255, 184, 0, 0.2)" />
+                    <stop offset="70%" stopColor="rgba(0, 242, 255, 0.2)" />
+                    <stop offset="100%" stopColor="rgba(0, 255, 148, 0.24)" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={formatTrendDate}
+                  stroke="#71717A"
+                  tickLine={false}
+                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
+                  stroke="#71717A"
+                  tickLine={false}
+                  axisLine={false}
+                  style={{ fontSize: '12px' }}
+                />
+                <Tooltip
+                  labelFormatter={(label) => formatTrendDate(String(label))}
+                  formatter={(value: number | string) => [`${value}/100`, copy.chartTooltipScore]}
+                  contentStyle={{
+                    background: 'rgba(20, 22, 25, 0.95)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    color: '#FAFAFA',
+                    backdropFilter: 'blur(20px)',
+                    boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+                  }}
+                  labelStyle={{ color: '#FAFAFA' }}
+                  itemStyle={{ color: '#00F2FF' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="score"
+                  stroke={`url(#${glowGradientId})`}
+                  strokeWidth={8}
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="score"
+                  stroke={`url(#${lineGradientId})`}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: '#00F2FF', stroke: '#060709', strokeWidth: 1.5 }}
+                  activeDot={{ r: 5, fill: '#00FF94', stroke: '#060709', strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

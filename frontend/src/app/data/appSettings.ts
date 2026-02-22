@@ -1,6 +1,6 @@
 export const APP_SETTINGS_STORAGE_KEY = 'invoiceguard.app.settings';
 
-export type AppLanguage = 'fr' | 'en';
+export type AppLanguage = 'fr' | 'en' | 'de';
 
 export interface AppSettings {
   profileName: string;
@@ -38,7 +38,7 @@ function sanitizeSettings(raw: unknown): AppSettings {
       typeof raw.companyName === 'string' && raw.companyName.trim().length > 0
         ? raw.companyName.trim()
         : DEFAULT_APP_SETTINGS.companyName,
-    language: raw.language === 'en' ? 'en' : DEFAULT_APP_SETTINGS.language,
+    language: (raw.language === 'en' || raw.language === 'de') ? raw.language : DEFAULT_APP_SETTINGS.language,
   };
 }
 

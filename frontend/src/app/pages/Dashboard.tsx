@@ -24,47 +24,68 @@ export default function Dashboard() {
   const language = useAppLanguage();
   const [dragActive, setDragActive] = useState(false);
   const [panelOpen,  setPanelOpen]  = useState(false);
-  const copy = language === 'fr'
-    ? {
-        months: ['Janv.', 'Fevr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.'],
-        title: 'Centre de controle',
-        subtitle: 'Traitement autonome des factures en temps reel',
-        totalValueProtected: 'Valeur totale protegee',
-        totalValueTrend: 'vs mois dernier',
-        humanHoursSaved: 'Heures humaines economisees',
-        humanHoursTrend: "efficacite d'automatisation",
-        processingVolume: 'Volume de traitement',
-        processInvoice: 'Traiter une facture',
-        dropInvoice: 'Depose un PDF ici ou clique pour parcourir',
-        fileFormatHint: 'Taille max: 10MB • PDF, PNG, JPG',
-        pendingTabLabel: 'Revues',
-        openPendingReviews: 'Ouvrir les revues en attente',
-        pendingReviews: 'Revues en attente',
-        pendingInvoicesCount: `${pendingReviews.length} factures en attente`,
-        closePanel: 'Fermer le panneau',
-        statusPending: 'en attente',
-        statusEscalated: 'escalade',
-      }
-    : {
-        months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-        title: 'Command Center',
-        subtitle: 'Real-time autonomous invoice processing',
-        totalValueProtected: 'Total Value Protected',
-        totalValueTrend: 'vs last month',
-        humanHoursSaved: 'Human Hours Saved',
-        humanHoursTrend: 'automation efficiency',
-        processingVolume: 'Processing Volume',
-        processInvoice: 'Process Invoice',
-        dropInvoice: 'Drop PDF invoice here or click to browse',
-        fileFormatHint: 'Maximum file size: 10MB • Supports PDF, PNG, JPG',
-        pendingTabLabel: 'Reviews',
-        openPendingReviews: 'Open pending reviews',
-        pendingReviews: 'Pending Reviews',
-        pendingInvoicesCount: `${pendingReviews.length} invoices pending`,
-        closePanel: 'Close panel',
-        statusPending: 'pending',
-        statusEscalated: 'escalated',
-      };
+  const copy = {
+    fr: {
+      months: ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.'],
+      title: 'Centre de contrôle',
+      subtitle: 'Traitement autonome des factures en temps réel',
+      totalValueProtected: 'Valeur totale protégée',
+      totalValueTrend: 'vs mois dernier',
+      humanHoursSaved: 'Heures humaines économisées',
+      humanHoursTrend: "efficacité d'automatisation",
+      processingVolume: 'Volume de traitement',
+      processInvoice: 'Traiter une facture',
+      dropInvoice: 'Dépose un PDF ici ou clique pour parcourir',
+      fileFormatHint: 'Taille max: 10MB • PDF, PNG, JPG',
+      pendingTabLabel: 'Revues',
+      openPendingReviews: 'Ouvrir les revues en attente',
+      pendingReviews: 'Revues en attente',
+      pendingInvoicesCount: `${pendingReviews.length} factures en attente`,
+      closePanel: 'Fermer le panneau',
+      statusPending: 'en attente',
+      statusEscalated: 'escaladé',
+    },
+    en: {
+      months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+      title: 'Command Center',
+      subtitle: 'Real-time autonomous invoice processing',
+      totalValueProtected: 'Total Value Protected',
+      totalValueTrend: 'vs last month',
+      humanHoursSaved: 'Human Hours Saved',
+      humanHoursTrend: 'automation efficiency',
+      processingVolume: 'Processing Volume',
+      processInvoice: 'Process Invoice',
+      dropInvoice: 'Drop PDF invoice here or click to browse',
+      fileFormatHint: 'Maximum file size: 10MB • Supports PDF, PNG, JPG',
+      pendingTabLabel: 'Reviews',
+      openPendingReviews: 'Open pending reviews',
+      pendingReviews: 'Pending Reviews',
+      pendingInvoicesCount: `${pendingReviews.length} invoices pending`,
+      closePanel: 'Close panel',
+      statusPending: 'pending',
+      statusEscalated: 'escalated',
+    },
+    de: {
+      months: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul'],
+      title: 'Kontrollzentrum',
+      subtitle: 'Autonome Rechnungsverarbeitung in Echtzeit',
+      totalValueProtected: 'Geschützter Gesamtwert',
+      totalValueTrend: 'vs. Letzter Monat',
+      humanHoursSaved: 'Eingesparte Arbeitsstunden',
+      humanHoursTrend: 'Automatisierungseffizienz',
+      processingVolume: 'Verarbeitungsvolumen',
+      processInvoice: 'Rechnung verarbeiten',
+      dropInvoice: 'PDF hier ablegen oder zum Durchsuchen klicken',
+      fileFormatHint: 'Max. Größe: 10MB • PDF, PNG, JPG',
+      pendingTabLabel: 'Prüfungen',
+      openPendingReviews: 'Ausstehende Prüfungen öffnen',
+      pendingReviews: 'Ausstehende Prüfungen',
+      pendingInvoicesCount: `${pendingReviews.length} Rechnungen ausstehend`,
+      closePanel: 'Panel schließen',
+      statusPending: 'ausstehend',
+      statusEscalated: 'eskaliert',
+    },
+  }[language];
   const chartData = chartVolumes.map((volume, index) => ({ month: copy.months[index], volume }));
   const getStatusLabel = (status: 'pending' | 'escalated') =>
     status === 'escalated' ? copy.statusEscalated : copy.statusPending;
@@ -224,10 +245,10 @@ export default function Dashboard() {
       <button
         type="button"
         onClick={() => setPanelOpen(true)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-[45] flex flex-col items-center gap-3 py-8 px-4 rounded-l-2xl transition-all duration-300 group hover:bg-[rgba(255,184,0,0.05)]"
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-[45] flex flex-col items-center gap-3 py-8 px-4 rounded-l-2xl transition-all duration-300 group hover:bg-[rgba(0,242,255,0.05)]"
         style={{
           background: 'rgba(6, 7, 9, 0.95)',
-          border: '1px solid rgba(255, 184, 0, 0.2)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRight: 'none',
           backdropFilter: 'blur(20px)',
           boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5)',
@@ -238,16 +259,16 @@ export default function Dashboard() {
         aria-label={copy.openPendingReviews}
       >
         <AlertTriangle 
-          className="w-6 h-6 mb-1 text-[#FFB800]"
+          className="w-6 h-6 mb-1 text-[#00F2FF] opacity-80 group-hover:opacity-100 transition-opacity"
         />
         
         {/* Count badge */}
         <span
           className="text-sm font-bold tabular-nums w-8 h-8 rounded-full flex items-center justify-center mb-2"
           style={{ 
-            background: 'rgba(255, 184, 0, 0.1)', 
-            color: '#FFB800', 
-            border: '1px solid rgba(255, 184, 0, 0.3)',
+            background: 'rgba(0, 242, 255, 0.1)', 
+            color: '#00F2FF', 
+            border: '1px solid rgba(0, 242, 255, 0.3)',
           }}
         >
           {pendingReviews.length}
@@ -255,7 +276,7 @@ export default function Dashboard() {
 
         {/* Vertical Text Label */}
         <div 
-          className="uppercase tracking-[0.2em] font-black text-[#FFB800] text-[10px]"
+          className="uppercase tracking-[0.2em] font-black text-[#FAFAFA] text-[10px] opacity-60 group-hover:opacity-100 transition-opacity"
           style={{ 
             writingMode: 'vertical-lr',
           }}
@@ -263,7 +284,7 @@ export default function Dashboard() {
           {copy.pendingTabLabel}
         </div>
 
-        <ChevronLeft className="w-4 h-4 text-[#71717A] mt-2 group-hover:text-[#FFB800] group-hover:-translate-x-1 transition-all" />
+        <ChevronLeft className="w-4 h-4 text-[#71717A] mt-2 group-hover:text-[#00F2FF] group-hover:-translate-x-1 transition-all" />
       </button>
 
       {/* Backdrop (closes panel on outside click) */}

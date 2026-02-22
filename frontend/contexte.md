@@ -2,7 +2,7 @@
 
 > Ce fichier est la source de vérité pour toute IA travaillant sur ce projet.
 > Il doit être mis à jour à chaque changement structurel significatif.
-> Dernière mise à jour : 2026-02-21 (i18n FR/EN global + settings réduits à 4 champs + autosave des paramètres + tri colonnes au clic + suppression du bloc Processing/Pending Review/Escalated + section recherche/action de History alignée sur les proportions de Vendors)
+> Dernière mise à jour : 2026-02-21 (i18n FR/EN global + settings réduits à 4 champs + autosave des paramètres + tri colonnes au clic + suppression du bloc Processing/Pending Review/Escalated + section recherche/action de History alignée sur les proportions de Vendors + graphique score facture dans le temps sur VendorDetail + courbe en dégradé vertical avec rouge pour les valeurs faibles + suppression des boutons Annuler/Réinitialiser dans Settings + feedback autosave déplacé sous le formulaire)
 
 ---
 
@@ -27,7 +27,9 @@
 
 ```
 InvoiceGuard Web App/
-├── index.html                        # Entrée HTML (meta tags, OG)
+├── index.html                        # Entrée HTML (favicon lié à logo.svg)
+├── public/
+│   └── logo.svg                      # Logo officiel et favicon
 ├── package.json                      # name: "invoiceguard", v1.0.0
 ├── vite.config.ts                    # Build prod optimisé, port 3000
 ├── tsconfig.json                     # Config TypeScript (strict)
@@ -237,6 +239,7 @@ Fichier centralisé partagé par `Dashboard.tsx` et `ReviewDetail.tsx`.
 - **Breadcrumb** : Vendors > Nom vendor
 - **Carte vendor** : icône colorée, nom, catégorie, trust score
 - **4 stats** : Total factures, Payées, En cours, Rejetées
+- **Graphique** : courbe `score des factures dans le temps` (0-100), triée par date, avec indicateurs `derniere facture` et `moyenne`, style dégradé vertical (bas=rouge scores faibles -> haut=vert scores élevés)
 - **Tableau factures** : Date, Facture #, Montant, Statut
 - Recherche par numéro conservée
 - Tri par colonne : clic en-tête => ascendant, 2e clic => descendant, 3e clic => aucun tri
@@ -251,6 +254,8 @@ Fichier centralisé partagé par `Dashboard.tsx` et `ReviewDetail.tsx`.
   - nom de l'entreprise
   - langue de préférence (fr/en)
 - **Sauvegarde automatique** : chaque modification est persistée automatiquement (sans bouton Save)
+- **Actions manuelles supprimées** : plus de boutons `Annuler` / `Réinitialiser`
+- **Feedback autosave** : message de confirmation affiché sous le formulaire settings
 - **Persistance locale** : sauvegarde `localStorage` via `src/app/data/appSettings.ts`
 
 ---
