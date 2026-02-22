@@ -8,9 +8,17 @@ from app.api.routers.market_data import router as market_data_router
 from app.api.routers.items import router as items_router
 from app.api.routers.pricing import router as pricing_router
 from app.api.routers.extraction import router as extraction_router
+from app.api.routers.auth import router as auth_router
+from app.api.routers.approve import router as approve_router
+from app.api.routers.billing import router as billing_router
+from app.api.routers.webhooks import router as webhooks_router
 
 router = APIRouter(prefix="/api/v1")
 
+router.include_router(auth_router)
+router.include_router(webhooks_router)
+router.include_router(approve_router)
+router.include_router(billing_router)
 router.include_router(invoices_router)
 router.include_router(vendors_router)
 router.include_router(payments_router)

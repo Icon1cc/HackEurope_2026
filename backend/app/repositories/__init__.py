@@ -6,6 +6,7 @@ from app.repositories.client import ClientRepository
 from app.repositories.market_data import MarketDataRepository
 from app.repositories.item import ItemRepository
 from app.repositories.cloud_pricing import CloudPricingRepository
+from app.repositories.user import UserRepository
 
 __all__ = [
     "InvoiceRepository",
@@ -16,4 +17,5 @@ __all__ = [
     "MarketDataRepository",
     "ItemRepository",
     "CloudPricingRepository",
+    "UserRepository",
 ]

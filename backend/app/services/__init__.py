@@ -6,6 +6,7 @@ from app.services.client import ClientService
 from app.services.market_data import MarketDataService
 from app.services.item import ItemService
 from app.services.cloud_pricing import CloudPricingService
+from app.services.auth import AuthService
 
 __all__ = [
     "InvoiceService",
@@ -16,4 +17,5 @@ __all__ = [
     "MarketDataService",
     "ItemService",
     "CloudPricingService",
+    "AuthService",
 ]

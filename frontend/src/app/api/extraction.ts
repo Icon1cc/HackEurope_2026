@@ -125,14 +125,32 @@ async function getErrorMessage(response: Response): Promise<string> {
   }
 }
 
+function getStoredAccessToken(): string | null {
+  try {
+    const raw = localStorage.getItem('invoiceguard.auth.tokens');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function uploadInvoiceForExtraction(file: File): Promise<ExtractionApiResponse> {
   const formData = new FormData();
   formData.append('file', file);
+
+  const token = getStoredAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   let response: Response;
   try {
     response = await fetch(getExtractionEndpoint(), {
       method: 'POST',
+      headers,
       body: formData,
     });
   } catch {

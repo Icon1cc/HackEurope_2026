@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.client import ClientService
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
-from app.core.dependencies import get_client_service
+from app.core.dependencies import get_client_service, get_current_user
 
-router = APIRouter(prefix="/clients", tags=["clients"])
+router = APIRouter(prefix="/clients", tags=["clients"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[ClientResponse])

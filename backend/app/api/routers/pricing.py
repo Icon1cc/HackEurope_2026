@@ -10,9 +10,9 @@ from app.schemas.cloud_pricing import (
     InvoiceCheckResponse,
     SyncStatus,
 )
-from app.core.dependencies import get_cloud_pricing_service
+from app.core.dependencies import get_cloud_pricing_service, get_current_user
 
-router = APIRouter(prefix="/pricing", tags=["pricing"])
+router = APIRouter(prefix="/pricing", tags=["pricing"], dependencies=[Depends(get_current_user)])
 
 
 # ── Sync ──────────────────────────────────────────────────────────────────

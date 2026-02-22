@@ -1,15 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock } from 'lucide-react';
 import { VercelBackground } from '../components/VercelBackground';
 import { Footer } from '../components/Footer';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
+import { useAuth } from '../auth/AuthContext';
 
 export default function SignIn() {
   const language = useAppLanguage();
   const navigate = useNavigate();
+  const { login, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
   const copy = {
     fr: {
       tagline: 'Protection IA autonome pour la comptabilité fournisseurs',
@@ -43,9 +53,18 @@ export default function SignIn() {
     },
   }[language];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -176,10 +195,18 @@ export default function SignIn() {
               </button>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2">
+                {error}
+              </div>
+            )}
+
             {/* Submit button */}
             <button
               type="submit"
-              className="w-full py-3.5 rounded-lg uppercase tracking-wider text-sm transition-all duration-200 relative overflow-hidden"
+              disabled={isSubmitting}
+              className="w-full py-3.5 rounded-lg uppercase tracking-wider text-sm transition-all duration-200 relative overflow-hidden disabled:opacity-60"
               style={{
                 background: '#00F2FF',
                 color: '#060709',
@@ -188,13 +215,13 @@ export default function SignIn() {
                 boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.2)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.02)';
+                if (!isSubmitting) e.currentTarget.style.transform = 'scale(1.02)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
               }}
             >
-              <span className="relative z-10">{copy.signIn}</span>
+              <span className="relative z-10">{isSubmitting ? '...' : copy.signIn}</span>
             </button>
           </form>
 

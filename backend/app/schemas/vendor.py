@@ -11,6 +11,7 @@ class VendorCreate(BaseModel):
     email: str | None = None
     registered_iban: str | None = None
     vendor_address: str | None = None
+    stripe_account_id: str | None = None
 
 
 class VendorUpdate(BaseModel):
@@ -24,6 +25,7 @@ class VendorUpdate(BaseModel):
     invoice_count: int | None = None
     trust_score: Decimal | None = Field(None, ge=0, le=1)
     auto_approve_threshold: int | None = Field(None, ge=0, le=100)
+    stripe_account_id: str | None = None
 
 
 class VendorSummary(BaseModel):
@@ -49,6 +51,7 @@ class VendorResponse(BaseModel):
     trust_score: Decimal
     auto_approve_threshold: int
     vendor_address: str | None = None
+    stripe_account_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

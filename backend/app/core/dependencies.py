@@ -1,6 +1,11 @@
-from fastapi import Depends
+from uuid import UUID as PyUUID
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
+from app.core.security import decode_token
 from app.repositories.invoice import InvoiceRepository
 from app.repositories.vendor import VendorRepository
 from app.repositories.payment import PaymentRepository
@@ -17,6 +22,9 @@ from app.services.client import ClientService
 from app.services.market_data import MarketDataService
 from app.services.item import ItemService
 from app.services.cloud_pricing import CloudPricingService
+from app.repositories.user import UserRepository
+from app.services.auth import AuthService
+from app.models.user import User
 
 
 # --- Repositories ---
@@ -74,3 +82,44 @@ def get_cloud_pricing_service(
     market_data_repo: MarketDataRepository = Depends(get_market_data_repo),
 ) -> CloudPricingService:
     return CloudPricingService(repo, market_data_repo=market_data_repo)
+
+
+# --- Auth ---
+
+_bearer_scheme = HTTPBearer()
+
+
+def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
+
+
+def get_auth_service(repo: UserRepository = Depends(get_user_repo)) -> AuthService:
+    return AuthService(repo)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    token = credentials.credentials
+    payload = decode_token(token)
+
+    if payload is None or payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = PyUUID(payload["sub"])
+    repo = UserRepository(db)
+    user = await repo.get_by_id(user_id)
+
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or disabled",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user

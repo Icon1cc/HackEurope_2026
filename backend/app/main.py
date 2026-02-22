@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import router
 from app.core.database import init_db, close_db
 from app.core.config import get_settings
+from app.core.stripe_client import init_stripe
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     try:
         await init_db()
-        logger.info("Database initialized")
+        init_stripe()
+        logger.info("Database and Stripe initialized")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise

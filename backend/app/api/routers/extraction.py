@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.models.cloud_pricing import CloudPricing
 from app.models.invoice import Invoice
 from app.models.item import Item
@@ -27,12 +28,13 @@ from processing_layer.schemas.analysis import InvoiceAnalysis
 from processing_layer.llm.factory import get_provider
 from processing_layer.schemas.invoice import InvoiceExtraction
 from processing_layer.schemas.result import InvoiceAction
+from app.services.stripe_service import execute_vendor_payment
 from processing_layer.schemas.rubric import InvoiceRubric
 from processing_layer.schemas.signals import PriceSignal, SignalScope, SignalType
 
 load_dotenv()
 
-router = APIRouter(prefix="/extraction", tags=["extraction"])
+router = APIRouter(prefix="/extraction", tags=["extraction"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=4)
@@ -196,12 +198,26 @@ async def extract_invoice(
         }
         invoice.confidence_score = _normalize_confidence_score(rubric.total_score)
         invoice.status = _invoice_status_from_action(decision.action)
+        if decision.action == InvoiceAction.APPROVED:
+            invoice.auto_approved = True
         invoice.claude_summary = analysis.summary
         invoice.updated_at = datetime.now(timezone.utc)
         await _refresh_vendor_metrics(db=db, vendor=vendor)
         await db.commit()
         await db.refresh(invoice)
         await db.refresh(vendor)
+
+        # Trigger Stripe vendor payment when auto-approved
+        if invoice.status == "approved" and invoice.vendor_id and invoice.total:
+            try:
+                await execute_vendor_payment(
+                    invoice_id=invoice.id,
+                    vendor_id=invoice.vendor_id,
+                    amount_euros=float(invoice.total),
+                    db=db,
+                )
+            except Exception as pay_exc:
+                logger.error("Payment trigger failed for invoice %s: %s", invoice.id, pay_exc)
 
         second_pass = {
             "analysis": analysis.model_dump(mode="json"),

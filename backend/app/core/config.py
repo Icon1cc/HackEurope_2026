@@ -8,6 +8,13 @@ class Settings(BaseSettings):
     environment: Literal["development", "testing", "production"] = "development"
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hackeurope"
     secret_key: str = "super_insecure_default_key"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_pro_price_id: str = ""
     debug: bool = True
 
     model_config = SettingsConfigDict(

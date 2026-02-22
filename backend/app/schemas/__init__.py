@@ -6,6 +6,7 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 from app.schemas.market_data import MarketDataCreate, MarketDataUpdate, MarketDataResponse
 from app.schemas.item import ItemCreate, ItemUpdate, ItemResponse
 from app.schemas.cloud_pricing import CloudPricingResponse, InvoiceCheckRequest, InvoiceCheckResponse, SyncStatus
+from app.schemas.auth import UserRegister, UserLogin, UserResponse, TokenResponse, TokenRefreshRequest
 
 __all__ = [
     "InvoiceCreate", "InvoiceUpdate", "InvoiceResponse",
@@ -16,4 +17,5 @@ __all__ = [
     "MarketDataCreate", "MarketDataUpdate", "MarketDataResponse",
     "ItemCreate", "ItemUpdate", "ItemResponse",
     "CloudPricingResponse", "InvoiceCheckRequest", "InvoiceCheckResponse", "SyncStatus",
+    "UserRegister", "UserLogin", "UserResponse", "TokenResponse", "TokenRefreshRequest",
 ]

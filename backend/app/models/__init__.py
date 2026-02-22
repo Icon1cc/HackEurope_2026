@@ -6,6 +6,7 @@ from app.models.client import Client
 from app.models.market_data import MarketData
 from app.models.item import Item
 from app.models.cloud_pricing import CloudPricing
+from app.models.user import User
 
 __all__ = [
     "Invoice",
@@ -16,4 +17,5 @@ __all__ = [
     "MarketData",
     "Item",
     "CloudPricing",
+    "User",
 ]

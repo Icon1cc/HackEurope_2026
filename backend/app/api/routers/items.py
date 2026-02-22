@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.item import ItemService
 from app.schemas.item import ItemCreate, ItemUpdate, ItemResponse
-from app.core.dependencies import get_item_service
+from app.core.dependencies import get_item_service, get_current_user
 
-router = APIRouter(prefix="/items", tags=["items"])
+router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[ItemResponse])
