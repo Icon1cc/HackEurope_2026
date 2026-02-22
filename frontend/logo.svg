@@ -1,8 +1,9 @@
-<svg width="400" height="218" viewBox="0 0 400 218" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M395.192 109.042C397.192 111.542 318.692 2.54215 197.192 5.04243C75.6923 7.54271 0.692281 113.542 5.19228 109.042" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
-<path d="M395 109C395 109 318.5 215.456 197 212.957C75.5005 210.457 5.00049 109 5.00049 109" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
-<rect x="183" y="92.0001" width="34" height="34" rx="17" fill="#00F2FF"/>
-<rect x="134" y="43.0001" width="133" height="131" rx="65.5" stroke="white" stroke-width="10"/>
-<rect x="97.5005" y="6.00006" width="206" height="206" rx="103" stroke="#FFFFFF" stroke-width="10"/>
-<rect x="149" y="57.0001" width="34" height="34" rx="17" fill="#FFFFFF"/>
+<svg width="324" height="408" viewBox="0 0 324 408" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M293.203 198.443C294.539 200.113 242.102 127.303 160.943 128.973C79.7834 130.644 29.6849 201.449 32.6909 198.443" stroke="white" stroke-width="6.67979" stroke-linecap="round"/>
+<path d="M293.075 198.415C293.075 198.415 241.974 269.526 160.815 267.856C79.6553 266.187 32.5627 198.415 32.5627 198.415" stroke="white" stroke-width="6.67979" stroke-linecap="round"/>
+<rect x="151.463" y="187.06" width="22.7113" height="22.7113" rx="11.3557" fill="#00F2FF"/>
+<rect x="118.732" y="154.328" width="88.8413" height="87.5053" rx="43.7527" stroke="white" stroke-width="6.67979"/>
+<rect x="94.3508" y="129.613" width="137.604" height="137.604" rx="68.8019" stroke="white" stroke-width="6.67979"/>
+<rect x="128.752" y="163.68" width="22.7113" height="22.7113" rx="11.3557" fill="white"/>
+<path d="M10.0627 226.445C16.2103 336.13 118.729 388.778 163.563 402.945C276.363 355.345 310.896 266.112 313.563 226.445L319.492 80.5005C319.834 72.0686 314.848 64.329 307.028 61.1561L171.012 5.96742C166.232 4.02792 160.887 4.01036 156.094 5.91841L18.7097 60.6138C10.119 64.0339 4.79711 72.9092 4.58581 82.1532C4.30361 94.499 4.39547 125.329 10.0627 226.445Z" stroke="white" stroke-width="9"/>
 </svg>
