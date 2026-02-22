@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { loadAppSettings, type AppLanguage } from '../data/appSettings';
 
-const AppLanguageContext = createContext<AppLanguage>('fr');
+const AppLanguageContext = createContext<AppLanguage>('en');
 
 function resolveCurrentLanguage(): AppLanguage {
   if (typeof window === 'undefined') {
-    return 'fr';
+    return 'en';
   }
 
   return loadAppSettings().language;

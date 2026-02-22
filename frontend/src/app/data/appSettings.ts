@@ -13,7 +13,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   profileName: 'Robert Quentin',
   profileEmail: 'robert@invoiceguard.ai',
   companyName: 'InvoiceGuard Labs',
-  language: 'fr',
+  language: 'en',
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
