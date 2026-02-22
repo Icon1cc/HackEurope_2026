@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -29,6 +30,7 @@ from processing_layer.llm.factory import get_provider
 from processing_layer.schemas.invoice import InvoiceExtraction
 from processing_layer.schemas.result import InvoiceAction
 from app.services.stripe_service import execute_vendor_payment
+from app.services.paid_service import track_value
 from processing_layer.signals.compute import compute_signals
 
 load_dotenv()
@@ -77,6 +79,8 @@ async def extract_invoice(
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+    pipeline_start = time.monotonic()
 
     loop = asyncio.get_event_loop()
     try:
@@ -172,6 +176,10 @@ async def extract_invoice(
         pricing_limit=pricing_limit,
     )
 
+    # ── Paid.ai: time_saved fires even if second pass fails ─────────
+    vid = str(vendor.id)
+    invoice_total = float(invoice.total) if invoice.total else 0.0
+
     second_pass: dict[str, Any] | None = None
     second_pass_error: str | None = None
     try:
@@ -249,6 +257,38 @@ async def extract_invoice(
             except Exception as pay_exc:
                 logger.error("Payment trigger failed for invoice %s: %s", invoice.id, pay_exc)
 
+        # ── Paid.ai: metrics needing second-pass data ─────────────────
+        try:
+            # 2. Fraud Blocked (duplicate or very low confidence)
+            if analysis.is_duplicate or rubric.total_score < 15:
+                await track_value(vid, "fraud_blocked_euros", invoice_total, {
+                    "is_duplicate": analysis.is_duplicate,
+                    "confidence_score": rubric.total_score,
+                    "invoice_id": str(invoice.id),
+                })
+
+            # 3. Overcharge Identified (market deviation signals)
+            overcharge_total = 0.0
+            for sig in signals:
+                if sig.signal_type.value == "market_deviation" and sig.is_anomalous:
+                    if sig.invoice_value is not None and sig.reference_value is not None:
+                        overcharge_total += max(0.0, sig.invoice_value - sig.reference_value)
+            if overcharge_total > 0:
+                await track_value(vid, "overcharge_identified_euros", overcharge_total, {
+                    "invoice_id": str(invoice.id),
+                    "invoice_total": invoice_total,
+                })
+
+            # 4. Negotiation Email Sent
+            if invoice.negotiation_email:
+                await track_value(vid, "negotiation_email_sent", 1.0, {
+                    "invoice_id": str(invoice.id),
+                    "action": decision.action.value,
+                })
+        except Exception as paid_exc:
+            logger.warning("Paid.ai second-pass tracking failed: %s", paid_exc)
+        # ── End Paid.ai second-pass metrics ───────────────────────────
+
         second_pass = {
             "analysis": analysis.model_dump(mode="json"),
             "rubric": rubric.model_dump(mode="json"),
@@ -266,6 +306,37 @@ async def extract_invoice(
         await db.rollback()
         second_pass_error = str(exc)
         logger.exception("Second Gemini pass failed for invoice %s", invoice_payload["id"])
+
+    # ── Paid.ai: metrics that fire regardless of second-pass outcome ──
+    try:
+        elapsed_minutes = (time.monotonic() - pipeline_start) / 60.0
+        time_saved = max(0.0, 12.0 - elapsed_minutes)
+        await track_value(vid, "time_saved_minutes", time_saved, {
+            "actual_minutes": round(elapsed_minutes, 2),
+            "invoice_id": str(invoice.id),
+            "second_pass_ok": second_pass is not None,
+        })
+
+        # Agent Margin (total value / estimated API cost)
+        overcharge = 0.0
+        if second_pass:
+            for sig in second_pass.get("analysis", {}).get("signals", []):
+                if sig.get("signal_type") == "market_deviation" and sig.get("is_anomalous"):
+                    inv_val = sig.get("invoice_value") or 0
+                    ref_val = sig.get("reference_value") or 0
+                    overcharge += max(0.0, float(inv_val) - float(ref_val))
+        total_value = time_saved * 50.0 + overcharge
+        estimated_api_cost = 0.05
+        agent_margin = total_value / estimated_api_cost if estimated_api_cost > 0 else 0.0
+        await track_value(vid, "agent_margin_ratio", agent_margin, {
+            "total_value_euros": round(total_value, 2),
+            "estimated_api_cost": estimated_api_cost,
+            "invoice_id": str(invoice.id),
+            "second_pass_ok": second_pass is not None,
+        })
+    except Exception as paid_exc:
+        logger.warning("Paid.ai baseline tracking failed: %s", paid_exc)
+    # ── End Paid.ai baseline ──────────────────────────────────────────
 
     return {
         "vendor": vendor_payload,

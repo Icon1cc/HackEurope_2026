@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_pro_price_id: str = ""
+    paid_api_key: str = ""
     debug: bool = True
 
     model_config = SettingsConfigDict(

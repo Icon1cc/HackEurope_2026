@@ -28,6 +28,7 @@ Content-Type: application/json
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "uuid",
@@ -54,6 +55,7 @@ Content-Type: application/json
 ```
 
 **Response (200):**
+
 ```json
 {
   "access_token": "eyJ...",
@@ -112,12 +114,12 @@ Without a valid token, protected endpoints return **403** (missing token) or **4
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SECRET_KEY` | JWT signing key | `super_insecure_default_key` |
-| `JWT_ALGORITHM` | JWT algorithm | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `30` |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL | `7` |
+| Variable                      | Description       | Default                      |
+| ----------------------------- | ----------------- | ---------------------------- |
+| `SECRET_KEY`                  | JWT signing key   | `super_insecure_default_key` |
+| `JWT_ALGORITHM`               | JWT algorithm     | `HS256`                      |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL  | `30`                         |
+| `REFRESH_TOKEN_EXPIRE_DAYS`   | Refresh token TTL | `7`                          |
 
 **Important:** Change `SECRET_KEY` to a strong random value in production.
 
@@ -128,7 +130,7 @@ The frontend stores tokens in `localStorage` under the key `invoiceguard.auth.to
 - On app load, the `AuthProvider` attempts to restore the session by calling `GET /auth/me` with the stored access token
 - If the access token is expired, it automatically tries to refresh using the stored refresh token
 - If both tokens are invalid, the user is redirected to the sign-in page
-- All protected routes are wrapped in `<ProtectedRoute>` which checks auth state
+- All protected routes are wrapped in `` which checks auth state
 - The extraction API call includes the Bearer token automatically
 
 ## Backend Architecture
