@@ -88,6 +88,16 @@ async def extract_invoice(
             detail=f"Extraction provider unavailable: {_exception_message(exc)}",
         ) from exc
 
+    _reasoning_provider_name = os.getenv("REASONING_PROVIDER", "claude")
+    try:
+        reasoning_provider = get_provider(_reasoning_provider_name)
+    except Exception as exc:
+        logger.exception("Failed to initialize reasoning provider")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Reasoning provider unavailable: {_exception_message(exc)}",
+        ) from exc
+
     extractor = InvoiceExtractor(provider)
 
     is_pdf = file.content_type == "application/pdf"
@@ -187,7 +197,7 @@ async def extract_invoice(
 
         analysis = await loop.run_in_executor(
             _executor,
-            provider.generate_structured,
+            reasoning_provider.generate_structured,
             second_prompt,
             InvoiceAnalysis,
         )
@@ -201,7 +211,7 @@ async def extract_invoice(
 
         if decision.action == InvoiceAction.ESCALATE_NEGOTIATION and not analysis.is_duplicate:
             try:
-                agent = NegotiationAgent(provider=provider)
+                agent = NegotiationAgent(provider=reasoning_provider)
                 draft = await loop.run_in_executor(_executor, agent.draft_email, analysis)
                 invoice.negotiation_email = draft.body
                 logger.info("[+]   negotiation draft generated  subject=%r  key_points=%d",

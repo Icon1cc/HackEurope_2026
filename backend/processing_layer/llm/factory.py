@@ -8,4 +8,7 @@ def get_provider(name: str | None = None) -> LLMProvider:
     if provider_name == "gemini":
         from .gemini import GeminiProvider
         return GeminiProvider()
+    if provider_name == "claude":
+        from .claude import ClaudeProvider
+        return ClaudeProvider()
     raise ValueError(f"Unknown provider: {provider_name!r}")

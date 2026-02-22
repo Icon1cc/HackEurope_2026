@@ -14,7 +14,7 @@ Four independent components, each with its own package manager and venv:
 |---|---|---|---|
 | `backend/` | FastAPI + SQLAlchemy (async) + PostgreSQL | 8000 | REST API, data layer |
 | `frontend/` | React 18 + TypeScript + Vite + Tailwind | 3000 | Web UI |
-| `processing_layer/` | Gemini API + Pydantic | — | LLM invoice extraction & analysis |
+| `processing_layer/` | Gemini (extraction) + Claude Sonnet 4.6 (reasoning) + Pydantic | — | LLM invoice extraction & analysis |
 | `data_sourcing/` | Playwright + httpx | — | Cloud pricing scraping |
 
 ### Backend Architecture (Clean Layered)
@@ -37,15 +37,15 @@ Schemas   Business    DB queries
 2. **Context gathering** (`analysis/`) — fetches historical invoices (SQL) + market prices via tool stubs
 3. **Signal computation** (`signals/`) — deterministic Python math → `PriceSignal` list with human-readable statements
 4. **Rubric evaluation** (`rubric/`) — per-criterion judge calls → `InvoiceRubric` with `total_score` 0–100 (deterministically aggregated)
-5. **LLM synthesis** (`analysis/`) — Gemini call on signals + rubric score → `InvoiceAnalysis`
+5. **LLM synthesis** (`analysis/`) — Claude Sonnet 4.6 call on signals + rubric score → `InvoiceAnalysis`
 6. **Routing** (`routing/`) — deterministic three-tier: `APPROVED` / `HUMAN_REVIEW` / `ESCALATE_NEGOTIATION`
-7. **Negotiation** (`negotiation/`) — if escalated, Gemini drafts renegotiation email → `NegotiationDraft`
+7. **Negotiation** (`negotiation/`) — if escalated (non-duplicate), Claude Sonnet 4.6 drafts renegotiation email → `NegotiationDraft`
 8. Final output: `InvoiceResult` (analysis + rubric + decision + optional draft + `confidence_score`)
 
 **Key design choices:**
-- All LLM calls use `response_json_schema` + `model_validate_json` (explicit JSON Schema, no SDK magic)
+- Extraction calls use Gemini `response_json_schema` + `model_validate_json`; reasoning calls use Claude tool-use JSON schema + `model_validate(block.input)`
 - Fail-fast everywhere: assert preconditions, raise on bad state, no silent defaults
-- `LLMProvider` abstraction — Gemini wired up, swappable
+- `LLMProvider` abstraction — dual provider: Gemini for extraction, Claude Sonnet 4.6 (`claude-sonnet-4-6`) for reasoning (analysis + negotiation)
 - Signals layer keeps math out of the LLM; LLM does reasoning, Python does arithmetic
 - **Rubric-based scoring**: `confidence_score` deterministically aggregated from per-criterion verdicts — not LLM-produced
 - Routing is pure Python — no LLM in the decision path
@@ -93,7 +93,7 @@ The backend extraction endpoint uses `backend/processing_layer/` components dire
 | 6. Context build | DB queries (prior invoices + CloudPricing) |
 | 7. Signal computation | `signals/compute.py:compute_signals()` — dict context, returns `list[PriceSignal]` |
 | 8. Rubric evaluation | `rubric/evaluator.py:evaluate_rubric()` → `InvoiceRubric` |
-| 9. Gemini call #2 | `llm/gemini.py:GeminiProvider.generate_structured()` → `InvoiceAnalysis` |
+| 9. Claude call #2 | `llm/claude.py:ClaudeProvider.generate_structured()` → `InvoiceAnalysis` |
 | 10. Routing | `routing/decision.py:decide()` → `InvoiceDecision` |
 | 11. DB update | Attach analysis + rubric + status; commit |
 | 12. Response | `{vendor, invoice, extraction, vendor_context, second_pass}` |
@@ -163,7 +163,7 @@ docker-compose down -v        # Reset everything
 
 Each component has a `.env.example`. Key variables:
 
-- **Backend:** `DATABASE_URL` (asyncpg connection string), `GEMINI_API_KEY` (preferred) / `GCP_API_KEY` (fallback), `INFRACOST_API_KEY`, `PRICING_MAX_RECORDS`
+- **Backend:** `DATABASE_URL` (asyncpg connection string), `GEMINI_API_KEY` (preferred) / `GCP_API_KEY` (fallback), `ANTHROPIC_API_KEY` (Claude reasoning), `REASONING_PROVIDER` (default: `claude`), `INFRACOST_API_KEY`, `PRICING_MAX_RECORDS`
 - **Frontend:** `VITE_API_BASE_URL`, `VITE_ENABLE_AI_CHAT`
 - **Processing:** `GEMINI_API_KEY`
 - **Data Sourcing:** `COMMODITY_PRICE_API_KEY`
