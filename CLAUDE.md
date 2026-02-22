@@ -67,7 +67,8 @@ Schemas   Business    DB queries
 
 **Current state:**
 - Extraction: fully implemented
-- Rubric schemas + scoring + criteria + routing: implemented; `evaluate_criterion`: stub (raises `NotImplementedError`)
+- Backend `/api/v1/extraction/` now performs two Gemini calls: first-pass extraction, then second-pass risk review using vendor invoices + `cloud_pricing` context, persisting data to `vendors`/`invoices`/`items`.
+- Rubric schemas + scoring + criteria + routing: implemented; `evaluate_criterion` now supports deterministic evaluation from extraction+signals context (competitor criterion remains unavailable without source data).
 - Analysis + negotiation: scaffolded end-to-end
 - `signals/compute.py`: stub — raises `NotImplementedError` pending tool return shapes
 - `tools/` (`SqlDatabaseTool`, `MarketDataTool`): stubs — raise `NotImplementedError`
@@ -135,7 +136,7 @@ docker-compose down -v        # Reset everything
 
 Each component has a `.env.example`. Key variables:
 
-- **Backend:** `DATABASE_URL` (asyncpg connection string), `GCP_API_KEY`, `INFRACOST_API_KEY`, `PRICING_MAX_RECORDS`
+- **Backend:** `DATABASE_URL` (asyncpg connection string), `GEMINI_API_KEY` (preferred) / `GCP_API_KEY` (fallback), `INFRACOST_API_KEY`, `PRICING_MAX_RECORDS`
 - **Frontend:** `VITE_API_BASE_URL`, `VITE_ENABLE_AI_CHAT`
 - **Processing:** `GEMINI_API_KEY`
 - **Data Sourcing:** `COMMODITY_PRICE_API_KEY`
