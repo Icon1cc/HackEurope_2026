@@ -93,6 +93,22 @@ function buildApiUrl(path: string, query: URLSearchParams | null = null): string
   return url.toString();
 }
 
+function getStoredAccessToken(): string | null {
+  try {
+    const raw = localStorage.getItem('invoiceguard.auth.tokens');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getStoredAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 function getErrorMessageFromDetail(detail: unknown): string | null {
   if (typeof detail === 'string' && detail.trim().length > 0) {
     return detail.trim();
@@ -128,7 +144,7 @@ async function requestJson<T>(path: string, query: URLSearchParams | null = null
 
   let response: Response;
   try {
-    response = await fetch(endpoint, { method: 'GET' });
+    response = await fetch(endpoint, { method: 'GET', headers: authHeaders() });
   } catch {
     throw new Error(`Network error while requesting ${path}`);
   }
@@ -153,6 +169,7 @@ async function requestJsonWithBody<TResponse>(
       method,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify(body),
     });
