@@ -16,4 +16,9 @@ dependencies = [
     "requests>=2.31.0",
     "sqlalchemy>=2.0.46",
     "uvicorn>=0.41.0",
+    "google-genai>=1.0",
+    "python-multipart>=0.0.9",
 ]
+
+[project.optional-dependencies]
+testing = ["fiftyone", "huggingface_hub>=0.20.0", "jupyterlab", "Pillow", "pytest"]

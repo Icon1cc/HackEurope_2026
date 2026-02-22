@@ -7,6 +7,7 @@ from app.api.routers.clients import router as clients_router
 from app.api.routers.market_data import router as market_data_router
 from app.api.routers.items import router as items_router
 from app.api.routers.pricing import router as pricing_router
+from app.api.routers.extraction import router as extraction_router
 
 router = APIRouter(prefix="/api/v1")
 
@@ -18,3 +19,4 @@ router.include_router(clients_router)
 router.include_router(market_data_router)
 router.include_router(items_router)
 router.include_router(pricing_router)
+router.include_router(extraction_router)
