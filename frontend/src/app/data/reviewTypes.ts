@@ -23,11 +23,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function isProcessedStatus(status: string | null | undefined): boolean {
-  return status === 'approved' || status === 'paid';
+  const normalized = status?.trim().toLowerCase();
+  return normalized === 'approved' || normalized === 'paid' || normalized === 'rejected';
 }
 
 export function toPendingReviewStatus(status: string | null | undefined): PendingReviewStatus {
-  if (status === 'rejected' || status === 'overcharge') {
+  const normalized = status?.trim().toLowerCase() ?? '';
+  if (normalized === 'rejected' || normalized === 'overcharge') {
     return 'escalated';
   }
   return 'pending';
@@ -71,6 +73,23 @@ export function extractReviewReasons(invoice: InvoiceApiResponse): string[] {
   }
 
   return [DEFAULT_REVIEW_REASON];
+}
+
+export function extractDecisionReasonSummary(invoice: InvoiceApiResponse): string | null {
+  const summary = invoice.claude_summary?.trim();
+  if (summary && summary.length > 0) {
+    return summary;
+  }
+
+  const decision = isRecord(invoice.market_benchmarks) ? invoice.market_benchmarks.decision : null;
+  if (isRecord(decision)) {
+    const reason = decision.reason;
+    if (typeof reason === 'string' && reason.trim().length > 0) {
+      return reason.trim();
+    }
+  }
+
+  return null;
 }
 
 function buildEmailDraft(

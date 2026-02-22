@@ -1,6 +1,8 @@
+from decimal import Decimal
 import pytest
 
 BASE = "/api/v1/vendors"
+INVOICES_BASE = "/api/v1/invoices"
 
 
 class TestVendors:
@@ -61,3 +63,35 @@ class TestVendors:
 
         resp = await client.get(f"{BASE}/{vid}")
         assert resp.status_code == 404
+
+    async def test_trust_score_is_average_of_vendor_invoice_scores(self, client):
+        create_vendor = await client.post(BASE, json={"name": "Metrics Vendor"})
+        assert create_vendor.status_code == 201
+        vendor_id = create_vendor.json()["id"]
+
+        create_first = await client.post(INVOICES_BASE, json={"vendor_id": vendor_id})
+        assert create_first.status_code == 201
+        first_invoice_id = create_first.json()["id"]
+
+        create_second = await client.post(INVOICES_BASE, json={"vendor_id": vendor_id})
+        assert create_second.status_code == 201
+        second_invoice_id = create_second.json()["id"]
+
+        # Third invoice has no explicit score and should count as 0 in average.
+        create_third = await client.post(INVOICES_BASE, json={"vendor_id": vendor_id})
+        assert create_third.status_code == 201
+
+        first_patch = await client.patch(f"{INVOICES_BASE}/{first_invoice_id}", json={"confidence_score": 80})
+        assert first_patch.status_code == 200
+
+        second_patch = await client.patch(f"{INVOICES_BASE}/{second_invoice_id}", json={"confidence_score": 60})
+        assert second_patch.status_code == 200
+
+        vendor_resp = await client.get(f"{BASE}/{vendor_id}")
+        assert vendor_resp.status_code == 200
+        vendor_payload = vendor_resp.json()
+
+        # ((80 + 60 + 0) / 3) / 100 = 0.4666...
+        trust_score = Decimal(vendor_payload["trust_score"])
+        assert vendor_payload["invoice_count"] == 3
+        assert trust_score.quantize(Decimal("0.0001")) == Decimal("0.4667")

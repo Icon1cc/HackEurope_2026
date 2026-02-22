@@ -52,8 +52,20 @@ export interface InvoiceApiResponse {
   updated_at: string;
 }
 
+export interface InvoiceUpdateApiRequest {
+  extracted_data?: Record<string, unknown> | null;
+  anomalies?: Array<Record<string, unknown>> | null;
+  market_benchmarks?: Record<string, unknown> | null;
+  confidence_score?: number | null;
+  status?: string | null;
+  claude_summary?: string | null;
+  negotiation_email?: string | null;
+  auto_approved?: boolean | null;
+}
+
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 const DEFAULT_API_VERSION = 'v1';
+export const INVOICES_UPDATED_EVENT = 'invoiceguard:invoices-updated';
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 
 function normalizeBaseUrl(rawUrl: string | undefined): string {
@@ -128,6 +140,37 @@ async function requestJson<T>(path: string, query: URLSearchParams | null = null
   return (await response.json()) as T;
 }
 
+async function requestJsonWithBody<TResponse>(
+  path: string,
+  method: 'PATCH',
+  body: unknown,
+): Promise<TResponse> {
+  const endpoint = buildApiUrl(path);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(`Network error while requesting ${path}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, `Request failed (${response.status})`));
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+export function dispatchInvoicesUpdatedEvent(): void {
+  window.dispatchEvent(new Event(INVOICES_UPDATED_EVENT));
+}
+
 export function decimalToNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined) {
     return null;
@@ -198,4 +241,11 @@ export async function fetchInvoices(limit = 1000): Promise<InvoiceApiResponse[]>
 
 export async function fetchInvoiceById(invoiceId: string): Promise<InvoiceApiResponse> {
   return requestJson<InvoiceApiResponse>(`/invoices/${invoiceId}`);
+}
+
+export async function updateInvoice(
+  invoiceId: string,
+  payload: InvoiceUpdateApiRequest,
+): Promise<InvoiceApiResponse> {
+  return requestJsonWithBody<InvoiceApiResponse>(`/invoices/${invoiceId}`, 'PATCH', payload);
 }

@@ -4,6 +4,7 @@ import { Sidebar } from '../components/Sidebar';
 import { VercelBackground } from '../components/VercelBackground';
 import { Search, Download, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
+  INVOICES_UPDATED_EVENT,
   decimalToNumber,
   fetchInvoices,
   fetchVendors,
@@ -204,6 +205,17 @@ export default function History() {
 
   useEffect(() => {
     void loadHistory();
+  }, [loadHistory]);
+
+  useEffect(() => {
+    const handleInvoicesUpdated = () => {
+      void loadHistory();
+    };
+
+    window.addEventListener(INVOICES_UPDATED_EVENT, handleInvoicesUpdated);
+    return () => {
+      window.removeEventListener(INVOICES_UPDATED_EVENT, handleInvoicesUpdated);
+    };
   }, [loadHistory]);
 
   const getTrustScoreStyles = (score: string) => {

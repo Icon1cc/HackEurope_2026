@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import {
+  INVOICES_UPDATED_EVENT,
   decimalToNumber,
   fetchInvoices,
   fetchVendorById,
@@ -247,6 +248,17 @@ export default function VendorDetail() {
 
   useEffect(() => {
     void loadVendorData();
+  }, [loadVendorData]);
+
+  useEffect(() => {
+    const handleInvoicesUpdated = () => {
+      void loadVendorData();
+    };
+
+    window.addEventListener(INVOICES_UPDATED_EVENT, handleInvoicesUpdated);
+    return () => {
+      window.removeEventListener(INVOICES_UPDATED_EVENT, handleInvoicesUpdated);
+    };
   }, [loadVendorData]);
 
   const vendorInvoices = useMemo(() => {

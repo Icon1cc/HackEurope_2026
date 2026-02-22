@@ -4,8 +4,20 @@ import { AlertTriangle, CheckCircle2, FileText, Send, XCircle, ArrowLeft, Shield
 import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
-import { fetchInvoiceById, formatCurrencyValue, type InvoiceApiResponse } from '../api/backend';
-import { buildFallbackEmail, extractReviewReasons, invoiceNumberOrFallback, isProcessedStatus } from '../data/reviewTypes';
+import {
+  dispatchInvoicesUpdatedEvent,
+  fetchInvoiceById,
+  formatCurrencyValue,
+  updateInvoice,
+  type InvoiceApiResponse,
+} from '../api/backend';
+import {
+  buildFallbackEmail,
+  extractDecisionReasonSummary,
+  extractReviewReasons,
+  invoiceNumberOrFallback,
+  isProcessedStatus,
+} from '../data/reviewTypes';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
 
 interface LineItemView {
@@ -32,6 +44,8 @@ interface ReviewViewModel {
   };
   isReview: boolean;
   rawStatus: string;
+  decisionState: 'approved' | 'rejected';
+  decisionSummary: string | null;
   vendorAddress: string;
   lineItems: LineItemView[];
 }
@@ -97,12 +111,33 @@ function toLocalizedReasons(reasons: string[]): ReviewViewModel['reasons'] {
   };
 }
 
+function buildManualDecisionSummary(
+  action: 'approved' | 'rejected',
+  reasons: string[],
+  recipientEmail?: string,
+): string {
+  const normalizedReasons = reasons
+    .map((reason) => reason.trim())
+    .filter((reason) => reason.length > 0)
+    .slice(0, 3);
+  const reasonSuffix = normalizedReasons.length > 0 ? ` ${normalizedReasons.join(' ')}` : '';
+
+  if (action === 'approved') {
+    return `Approved after human review.${reasonSuffix}`;
+  }
+
+  const recipientSuffix = recipientEmail?.trim() ? ` Negotiation note prepared for ${recipientEmail.trim()}.` : '';
+  return `Rejected after human review due to unresolved concerns.${reasonSuffix}${recipientSuffix}`;
+}
+
 function toReviewViewModel(invoice: InvoiceApiResponse): ReviewViewModel {
   const invoiceNumber = invoiceNumberOrFallback(invoice);
   const vendorName = invoice.vendor_name?.trim() || 'Unknown Vendor';
-  const reasons = isProcessedStatus(invoice.status)
-    ? ['Invoice approved and processed.']
-    : extractReviewReasons(invoice);
+  const reasons = extractReviewReasons(invoice);
+  const normalizedStatus = invoice.status?.trim().toLowerCase() ?? '';
+  const isReview = !isProcessedStatus(normalizedStatus);
+  const decisionSummary = isReview ? null : extractDecisionReasonSummary(invoice);
+  const decisionState = normalizedStatus === 'rejected' ? 'rejected' : 'approved';
 
   return {
     id: invoice.id,
@@ -112,15 +147,17 @@ function toReviewViewModel(invoice: InvoiceApiResponse): ReviewViewModel {
     date: invoice.created_at?.slice(0, 10) ?? '',
     contactEmail: buildFallbackEmail(vendorName),
     reasons: toLocalizedReasons(reasons),
-    emailDraft: isProcessedStatus(invoice.status)
-      ? {
+    emailDraft: isReview
+      ? buildEmailDraft(invoiceNumber, vendorName, reasons)
+      : {
           en: 'Draft not available for processed invoices.',
           fr: 'Brouillon non disponible pour les factures traitées.',
           de: 'Entwurf für bearbeitete Rechnungen nicht verfügbar.',
-        }
-      : buildEmailDraft(invoiceNumber, vendorName, reasons),
-    isReview: !isProcessedStatus(invoice.status),
-    rawStatus: invoice.status,
+        },
+    isReview,
+    rawStatus: normalizedStatus,
+    decisionState,
+    decisionSummary,
     vendorAddress: invoice.vendor_address?.trim() || 'Address unavailable',
     lineItems: toLineItems(invoice),
   };
@@ -173,12 +210,14 @@ export default function ReviewDetail() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [negotiationEmail, setNegotiationEmail] = useState('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
 
   const copy = {
     fr: {
       title: 'Facture',
       reviewTitle: 'Review',
-      paidStatus: 'PAYÉE',
+      approvedStatus: 'APPROUVÉE',
+      rejectedStatus: 'REJETÉE',
       backToDashboard: 'Retour au dashboard',
       previewTitle: 'Aperçu de la facture',
       invoiceNumber: 'Numéro de facture',
@@ -192,22 +231,30 @@ export default function ReviewDetail() {
       decisionPanel: 'Panneau de décision',
       processingStatus: 'Statut du traitement',
       blockingReasons: 'Raisons du blocage',
+      reasoningSection: 'Résumé du raisonnement',
       recipient: 'Destinataire',
       emailDraft: 'Brouillon d\'email de négociation',
       approve: 'Approuver la facture',
       reject: 'Rejeter & Envoyer Email',
+      savingDecision: 'Enregistrement...',
       processingFinished: 'Traitement terminé',
       processingFinishedDesc: 'Cette facture a déjà été traitée par le système. Aucune action manuelle n\'est requise.',
+      processingApprovedDesc: 'Décision finale: facture approuvée.',
+      processingRejectedDesc: 'Décision finale: facture rejetée.',
       invoiceNotFound: 'Facture introuvable',
       invoiceNotFoundDesc: 'La facture demandée n\'existe pas ou a été supprimée.',
       invoiceLoading: 'Chargement de la facture...',
+      reasoningFallbackApproved: 'Facture approuvée après revue manuelle.',
+      reasoningFallbackRejected: 'Facture rejetée après revue manuelle.',
       approveFeedback: (num: string) => `Facture ${num} approuvée telle quelle.`,
       rejectFeedback: (num: string, email: string) => `Facture ${num} rejetée. Email de négociation prêt à l'envoi vers ${email}.`,
+      decisionUpdateError: (message: string) => `Échec de la mise à jour de la décision: ${message}`,
     },
     en: {
       title: 'Invoice',
       reviewTitle: 'Review',
-      paidStatus: 'PAID',
+      approvedStatus: 'APPROVED',
+      rejectedStatus: 'REJECTED',
       backToDashboard: 'Back to dashboard',
       previewTitle: 'Invoice Preview',
       invoiceNumber: 'Invoice Number',
@@ -221,22 +268,30 @@ export default function ReviewDetail() {
       decisionPanel: 'Decision Panel',
       processingStatus: 'Processing Status',
       blockingReasons: 'Blocking Reasons',
+      reasoningSection: 'Reasoning Summary',
       recipient: 'Recipient',
       emailDraft: 'Negotiation Email Draft',
       approve: 'Approve Invoice',
       reject: 'Reject & Send Email',
+      savingDecision: 'Saving...',
       processingFinished: 'Processing Finished',
       processingFinishedDesc: 'This invoice has already been processed by the system. No manual action is required.',
+      processingApprovedDesc: 'Final decision: invoice approved.',
+      processingRejectedDesc: 'Final decision: invoice rejected.',
       invoiceNotFound: 'Invoice not found',
       invoiceNotFoundDesc: 'The requested invoice does not exist or has been deleted.',
       invoiceLoading: 'Loading invoice...',
+      reasoningFallbackApproved: 'Invoice approved after manual review.',
+      reasoningFallbackRejected: 'Invoice rejected after manual review.',
       approveFeedback: (num: string) => `Invoice ${num} approved as is.`,
       rejectFeedback: (num: string, email: string) => `Invoice ${num} rejected. Negotiation email ready to send to ${email}.`,
+      decisionUpdateError: (message: string) => `Failed to update decision: ${message}`,
     },
     de: {
       title: 'Rechnung',
       reviewTitle: 'Prüfung',
-      paidStatus: 'BEZAHLT',
+      approvedStatus: 'GENEHMIGT',
+      rejectedStatus: 'ABGELEHNT',
       backToDashboard: 'Zurück zum Dashboard',
       previewTitle: 'Rechnungsvorschau',
       invoiceNumber: 'Rechnungsnummer',
@@ -250,17 +305,24 @@ export default function ReviewDetail() {
       decisionPanel: 'Entscheidungspanel',
       processingStatus: 'Verarbeitungsstatus',
       blockingReasons: 'Gründe für die Blockierung',
+      reasoningSection: 'Begründung',
       recipient: 'Empfänger',
       emailDraft: 'Entwurf Verhandlungs-E-Mail',
       approve: 'Rechnung genehmigen',
       reject: 'Ablehnen & E-Mail senden',
+      savingDecision: 'Wird gespeichert...',
       processingFinished: 'Verarbeitung abgeschlossen',
       processingFinishedDesc: 'Diese Rechnung wurde bereits vom System verarbeitet. Keine manuelle Aktion erforderlich.',
+      processingApprovedDesc: 'Finale Entscheidung: Rechnung genehmigt.',
+      processingRejectedDesc: 'Finale Entscheidung: Rechnung abgelehnt.',
       invoiceNotFound: 'Rechnung nicht gefunden',
       invoiceNotFoundDesc: 'Die angeforderte Rechnung existiert nicht oder wurde gelöscht.',
       invoiceLoading: 'Rechnung wird geladen...',
+      reasoningFallbackApproved: 'Rechnung nach manueller Prüfung genehmigt.',
+      reasoningFallbackRejected: 'Rechnung nach manueller Prüfung abgelehnt.',
       approveFeedback: (num: string) => `Rechnung ${num} wie vorliegend genehmigt.`,
       rejectFeedback: (num: string, email: string) => `Rechnung ${num} abgelehnt. Verhandlungs-E-Mail bereit zum Versand an ${email}.`,
+      decisionUpdateError: (message: string) => `Entscheidung konnte nicht aktualisiert werden: ${message}`,
     }
   }[language];
 
@@ -271,8 +333,11 @@ export default function ReviewDetail() {
 
     setRecipientEmail(review.contactEmail);
     setNegotiationEmail(review.emailDraft[language]);
-    setActionFeedback(null);
   }, [review, language]);
+
+  useEffect(() => {
+    setActionFeedback(null);
+  }, [reviewId]);
 
   if (invoiceLoading) {
     return (
@@ -325,16 +390,61 @@ export default function ReviewDetail() {
     );
   }
 
-  const handleApprove = () => {
-    setActionFeedback(copy.approveFeedback(review.invoiceNumber));
-  };
-
-  const handleRejectAndSend = () => {
-    setActionFeedback(copy.rejectFeedback(review.invoiceNumber, recipientEmail));
-  };
-
-  // Get reasons based on current language
   const currentReasons = review.reasons[language] || [];
+  const decisionSummary = (review.decisionSummary?.trim() || (
+    review.decisionState === 'rejected'
+      ? copy.reasoningFallbackRejected
+      : copy.reasoningFallbackApproved
+  ));
+
+  const handleApprove = async () => {
+    if (decisionSubmitting) {
+      return;
+    }
+
+    setDecisionSubmitting(true);
+    setActionFeedback(null);
+    try {
+      const updatedInvoice = await updateInvoice(review.id, {
+        status: 'approved',
+        claude_summary: buildManualDecisionSummary('approved', currentReasons),
+        auto_approved: false,
+      });
+      setInvoice(updatedInvoice);
+      dispatchInvoicesUpdatedEvent();
+      setActionFeedback(copy.approveFeedback(review.invoiceNumber));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setActionFeedback(copy.decisionUpdateError(message));
+    } finally {
+      setDecisionSubmitting(false);
+    }
+  };
+
+  const handleRejectAndSend = async () => {
+    if (decisionSubmitting) {
+      return;
+    }
+
+    setDecisionSubmitting(true);
+    setActionFeedback(null);
+    try {
+      const updatedInvoice = await updateInvoice(review.id, {
+        status: 'rejected',
+        claude_summary: buildManualDecisionSummary('rejected', currentReasons, recipientEmail),
+        negotiation_email: negotiationEmail,
+        auto_approved: false,
+      });
+      setInvoice(updatedInvoice);
+      dispatchInvoicesUpdatedEvent();
+      setActionFeedback(copy.rejectFeedback(review.invoiceNumber, recipientEmail));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setActionFeedback(copy.decisionUpdateError(message));
+    } finally {
+      setDecisionSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen relative overflow-hidden">
@@ -358,8 +468,24 @@ export default function ReviewDetail() {
                 {review.isReview ? copy.reviewTitle : copy.title} {review.invoiceNumber}
               </h1>
               {isProcessedStatus(review.rawStatus) && (
-                <span className="px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider bg-[#00FF94]/10 text-[#00FF94] border border-[#00FF94]/20 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> {copy.paidStatus}
+                <span
+                  className="px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"
+                  style={review.decisionState === 'rejected'
+                    ? {
+                        background: 'rgba(255, 0, 85, 0.1)',
+                        color: '#FF0055',
+                        border: '1px solid rgba(255, 0, 85, 0.25)',
+                      }
+                    : {
+                        background: 'rgba(0, 255, 148, 0.1)',
+                        color: '#00FF94',
+                        border: '1px solid rgba(0, 255, 148, 0.25)',
+                      }}
+                >
+                  {review.decisionState === 'rejected'
+                    ? <XCircle className="w-3 h-3" />
+                    : <ShieldCheck className="w-3 h-3" />}
+                  {review.decisionState === 'rejected' ? copy.rejectedStatus : copy.approvedStatus}
                 </span>
               )}
             </div>
@@ -483,22 +609,53 @@ export default function ReviewDetail() {
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                 }}
               >
-                <div className="text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-3">
-                  {isProcessedStatus(review.rawStatus) ? copy.processingStatus : copy.blockingReasons}
-                </div>
-                <ul className="space-y-2">
-                  {currentReasons.map((reason: string, index: number) => (
-                    <li key={`${review.id}-${index}`} className="flex items-start gap-2 text-sm text-[#E4E4E7] leading-relaxed">
-                      {isProcessedStatus(review.rawStatus) ? (
-                        <ShieldCheck className="w-4 h-4 text-[#00FF94] mt-0.5 flex-shrink-0" />
+                {review.isReview ? (
+                  <>
+                    <div className="text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-3">
+                      {copy.blockingReasons}
+                    </div>
+                    <ul className="space-y-2">
+                      {currentReasons.map((reason: string, index: number) => (
+                        <li key={`${review.id}-${index}`} className="flex items-start gap-2 text-sm text-[#E4E4E7] leading-relaxed">
+                          <AlertTriangle className="w-4 h-4 text-[#FFB800] mt-0.5 flex-shrink-0" />
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-3">
+                      {copy.processingStatus}
+                    </div>
+                    <div className="flex items-start gap-2 text-sm text-[#E4E4E7] leading-relaxed">
+                      {review.decisionState === 'rejected' ? (
+                        <XCircle className="w-4 h-4 text-[#FF0055] mt-0.5 flex-shrink-0" />
                       ) : (
-                        <AlertTriangle className="w-4 h-4 text-[#FFB800] mt-0.5 flex-shrink-0" />
+                        <ShieldCheck className="w-4 h-4 text-[#00FF94] mt-0.5 flex-shrink-0" />
                       )}
-                      <span>{reason}</span>
-                    </li>
-                  ))}
-                </ul>
+                      <span>{review.decisionState === 'rejected' ? copy.processingRejectedDesc : copy.processingApprovedDesc}</span>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {!review.isReview && (
+                <div
+                  className="rounded-lg p-4 mb-4"
+                  style={{
+                    background: 'rgba(20, 22, 25, 0.6)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                  }}
+                >
+                  <div className="text-xs text-[#71717A] uppercase tracking-wider font-semibold mb-3">
+                    {copy.reasoningSection}
+                  </div>
+                  <p className="text-sm text-[#E4E4E7] leading-relaxed">
+                    {decisionSummary}
+                  </p>
+                </div>
+              )}
 
               {review.isReview && (
                 <>
@@ -543,32 +700,36 @@ export default function ReviewDetail() {
                     <button
                       type="button"
                       onClick={handleApprove}
+                      disabled={decisionSubmitting}
                       className="w-full py-3 rounded-lg uppercase tracking-wider text-sm transition-all duration-200 flex items-center justify-center gap-2"
                       style={{
                         background: '#00FF94',
                         color: '#060709',
                         fontWeight: 600,
                         border: '1px solid rgba(255, 255, 255, 0.1)',
+                        opacity: decisionSubmitting ? 0.75 : 1,
                       }}
                     >
                       <CheckCircle2 className="w-5 h-5" />
-                      <span>{copy.approve}</span>
+                      <span>{decisionSubmitting ? copy.savingDecision : copy.approve}</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={handleRejectAndSend}
+                      disabled={decisionSubmitting}
                       className="w-full py-3 rounded-lg uppercase tracking-wider text-sm transition-all duration-200 flex items-center justify-center gap-2"
                       style={{
                         background: 'transparent',
                         color: '#FF0055',
                         border: '1px solid #FF0055',
                         fontWeight: 600,
+                        opacity: decisionSubmitting ? 0.75 : 1,
                       }}
                     >
                       <XCircle className="w-5 h-5" />
                       <Send className="w-4 h-4" />
-                      <span>{copy.reject}</span>
+                      <span>{decisionSubmitting ? copy.savingDecision : copy.reject}</span>
                     </button>
                   </div>
                 </>
@@ -582,7 +743,11 @@ export default function ReviewDetail() {
                     border: '1px solid rgba(255, 255, 255, 0.05)',
                   }}
                 >
-                  <ShieldCheck className="w-12 h-12 text-[#00FF94] mx-auto mb-3 opacity-50" />
+                  {review.decisionState === 'rejected' ? (
+                    <XCircle className="w-12 h-12 text-[#FF0055] mx-auto mb-3 opacity-50" />
+                  ) : (
+                    <ShieldCheck className="w-12 h-12 text-[#00FF94] mx-auto mb-3 opacity-50" />
+                  )}
                   <p className="text-sm text-[#FAFAFA] font-medium mb-1">{copy.processingFinished}</p>
                   <p className="text-xs text-[#71717A]">
                     {copy.processingFinishedDesc}

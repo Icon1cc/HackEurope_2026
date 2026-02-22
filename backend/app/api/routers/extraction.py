@@ -300,7 +300,7 @@ async def _refresh_vendor_metrics(db: AsyncSession, vendor: Vendor) -> None:
         select(
             func.count(Invoice.id),
             func.avg(Invoice.total),
-            func.avg(Invoice.confidence_score),
+            func.avg(func.coalesce(Invoice.confidence_score, 0)),
         ).where(Invoice.vendor_id == vendor.id)
     )
     invoice_count, avg_invoice_amount, avg_confidence_score = result.one()
@@ -308,8 +308,10 @@ async def _refresh_vendor_metrics(db: AsyncSession, vendor: Vendor) -> None:
     vendor.invoice_count = int(invoice_count or 0)
     vendor.avg_invoice_amount = avg_invoice_amount
 
-    avg_confidence_decimal = _to_decimal(avg_confidence_score)
-    if avg_confidence_decimal is not None:
+    if vendor.invoice_count == 0:
+        vendor.trust_score = Decimal("0.5")
+    else:
+        avg_confidence_decimal = _to_decimal(avg_confidence_score) or Decimal("0")
         bounded_confidence = max(Decimal("0"), min(Decimal("100"), avg_confidence_decimal))
         vendor.trust_score = bounded_confidence / Decimal("100")
 

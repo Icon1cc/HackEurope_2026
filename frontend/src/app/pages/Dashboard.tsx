@@ -15,7 +15,13 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
-import { fetchInvoices, formatCurrencyValue, decimalToNumber, type InvoiceApiResponse } from '../api/backend';
+import {
+  INVOICES_UPDATED_EVENT,
+  fetchInvoices,
+  formatCurrencyValue,
+  decimalToNumber,
+  type InvoiceApiResponse,
+} from '../api/backend';
 import { uploadInvoiceForExtraction } from '../api/extraction';
 import { isProcessedStatus, toPendingReview, type PendingReview } from '../data/reviewTypes';
 import { useAppLanguage } from '../i18n/AppLanguageProvider';
@@ -142,6 +148,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     void loadInvoices();
+  }, [loadInvoices]);
+
+  useEffect(() => {
+    const handleInvoicesUpdated = () => {
+      void loadInvoices();
+    };
+
+    window.addEventListener(INVOICES_UPDATED_EVENT, handleInvoicesUpdated);
+    return () => {
+      window.removeEventListener(INVOICES_UPDATED_EVENT, handleInvoicesUpdated);
+    };
   }, [loadInvoices]);
 
   const dashboardReviews = useMemo<PendingReview[]>(() => {
