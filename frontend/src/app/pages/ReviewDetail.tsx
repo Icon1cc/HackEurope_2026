@@ -60,6 +60,8 @@ interface ReviewViewModel {
   decisionSummary: string | null;
   vendorAddress: string;
   lineItems: LineItemView[];
+  subtotal: string;
+  tax: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,22 +69,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
-  const netSubtotal = decimalToNumber(invoice.subtotal);
-  const grossTotal = decimalToNumber(invoice.total);
-  const vatMultiplier =
-    netSubtotal && grossTotal && netSubtotal > 0 ? grossTotal / netSubtotal : 1;
-
   if (invoice.items.length > 0) {
-    return invoice.items.map((item) => {
-      const netAmount = decimalToNumber(item.total_price);
-      const grossAmount = netAmount !== null ? netAmount * vatMultiplier : null;
-      return {
-        description: item.description || 'Line item',
-        quantity: formatQuantity(item.quantity),
-        unitPrice: formatCurrencyValue(item.unit_price, invoice.currency),
-        amount: formatCurrencyValue(grossAmount, invoice.currency),
-      };
-    });
+    return invoice.items.map((item) => ({
+      description: item.description || 'Line item',
+      quantity: formatQuantity(item.quantity),
+      unitPrice: formatCurrencyValue(item.unit_price, invoice.currency),
+      amount: formatCurrencyValue(item.total_price, invoice.currency),
+    }));
   }
 
   if (isRecord(invoice.extracted_data) && Array.isArray(invoice.extracted_data.line_items)) {
@@ -103,13 +96,11 @@ function toLineItems(invoice: InvoiceApiResponse): LineItemView[] {
         const qty = typeof item.quantity === 'number' || typeof item.quantity === 'string'
           ? item.quantity
           : null;
-        const netAmount = decimalToNumber(totalPrice);
-        const grossAmount = netAmount !== null ? netAmount * vatMultiplier : null;
         return {
           description,
           quantity: formatQuantity(qty),
           unitPrice: formatCurrencyValue(unitPrice, invoice.currency),
-          amount: formatCurrencyValue(grossAmount, invoice.currency),
+          amount: formatCurrencyValue(totalPrice, invoice.currency),
         };
       })
       .filter((item): item is LineItemView => item !== null);
@@ -197,6 +188,8 @@ function toReviewViewModel(invoice: InvoiceApiResponse): ReviewViewModel {
     decisionSummary,
     vendorAddress: invoice.vendor_address?.trim() || 'Address unavailable',
     lineItems: toLineItems(invoice),
+    subtotal: formatCurrencyValue(invoice.subtotal ?? invoice.total, invoice.currency),
+    tax: decimalToNumber(invoice.tax) ? formatCurrencyValue(invoice.tax, invoice.currency) : null,
   };
 }
 
@@ -291,6 +284,8 @@ export default function ReviewDetail() {
       professionalServices: 'Services Professionnels',
       platformSubscription: 'Abonnement Plateforme',
       included: 'Inclus',
+      subtotal: 'Sous-total',
+      tax: 'TVA',
       totalDue: 'Total dû',
       decisionPanel: 'Panneau de décision',
       processingStatus: 'Statut du traitement',
@@ -338,6 +333,8 @@ export default function ReviewDetail() {
       professionalServices: 'Professional Services',
       platformSubscription: 'Platform Subscription',
       included: 'Included',
+      subtotal: 'Subtotal',
+      tax: 'VAT',
       totalDue: 'Total Due',
       decisionPanel: 'Decision Panel',
       processingStatus: 'Processing Status',
@@ -385,6 +382,8 @@ export default function ReviewDetail() {
       professionalServices: 'Professionelle Dienstleistungen',
       platformSubscription: 'Plattform-Abonnement',
       included: 'Inklusive',
+      subtotal: 'Zwischensumme',
+      tax: 'MwSt.',
       totalDue: 'Gesamtbetrag',
       decisionPanel: 'Entscheidungspanel',
       processingStatus: 'Verarbeitungsstatus',
@@ -672,9 +671,21 @@ export default function ReviewDetail() {
                     </tbody>
                   </table>
 
-                  <div className="border-t-2 border-gray-300 pt-6 flex justify-between items-center">
-                    <span className="text-lg sm:text-xl text-gray-900 font-bold">{copy.totalDue}</span>
-                    <span className="text-3xl sm:text-4xl text-gray-900 font-bold">{review.amount}</span>
+                  <div className="border-t border-gray-200 pt-4 space-y-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>{copy.subtotal}</span>
+                      <span>{review.subtotal}</span>
+                    </div>
+                    {review.tax && (
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>{copy.tax}</span>
+                        <span>{review.tax}</span>
+                      </div>
+                    )}
+                    <div className="border-t-2 border-gray-300 pt-4 flex justify-between items-center">
+                      <span className="text-lg sm:text-xl text-gray-900 font-bold">{copy.totalDue}</span>
+                      <span className="text-3xl sm:text-4xl text-gray-900 font-bold">{review.amount}</span>
+                    </div>
                   </div>
                 </div>
               </div>
