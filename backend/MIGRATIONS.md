@@ -4,10 +4,11 @@ This project uses **Alembic** for managing database schema changes.
 
 ## Installation
 
-Alembic is included in `requirements.txt`:
+Alembic is included in `pyproject.toml`:
 
 ```bash
-pip install -r requirements.txt
+uv sync
+# or: pip install .
 ```
 
 ## Workflow

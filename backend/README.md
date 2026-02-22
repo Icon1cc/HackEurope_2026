@@ -75,7 +75,7 @@ If you are not using `uv`:
 cd <repo-root>/backend
 python3.13 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install .
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
