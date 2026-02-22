@@ -11,7 +11,7 @@ cp ../.env.example ../.env
 pytest tests/
 ```
 
-Required env var: `GEMINI_API_KEY`
+Required env var: `GEMINI_API_KEY` (preferred). `GCP_API_KEY` is also accepted as a fallback.
 
 ---
 
@@ -70,7 +70,7 @@ Invoice document (PDF / image)
    In:  InvoiceExtraction + dict (context)
    Out: schemas/rubric.py → InvoiceRubric (list[CriterionResult] + total_score 0–100)
    Key: rubric/criteria.py:CRITERIA
-        rubric/evaluator.py:evaluate_criterion()   ← stub
+        rubric/evaluator.py:evaluate_criterion()   ← deterministic signal-based implementation
         rubric/scoring.py:aggregate_score()
         prompts.py:JUDGE_FORMAL_VALIDITY / JUDGE_MARKET_PRICE / JUDGE_HISTORICAL_PRICE / JUDGE_COMPETITOR_PRICE
         constants.py:PRICE_TOLERANCE_PCT
@@ -137,7 +137,7 @@ processing_layer/
     signals/            PriceSignal computation (stub)
     rubric/
         criteria.py     CRITERIA list + weight-sum assertion
-        evaluator.py    evaluate_criterion() — stub
+        evaluator.py    evaluate_criterion() — deterministic signal-based evaluation
         scoring.py      aggregate_score()   — deterministic math
     routing/            decide() — three-tier routing + formal override
     negotiation/        NegotiationAgent — renegotiation email draft

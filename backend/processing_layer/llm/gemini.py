@@ -15,7 +15,9 @@ SUPPORTED_IMAGE_MIME_TYPES = frozenset({
 
 class GeminiProvider(LLMProvider):
     def __init__(self, model: str = DEFAULT_MODEL, api_key: str | None = None):
-        key = api_key or os.environ["GEMINI_API_KEY"]
+        key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GCP_API_KEY")
+        if not key:
+            raise RuntimeError("Missing Gemini API key. Set GEMINI_API_KEY (preferred) or GCP_API_KEY.")
         self.client = genai.Client(api_key=key)
         self.model = model
 

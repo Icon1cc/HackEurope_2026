@@ -56,6 +56,8 @@ Set backend env (in `backend/.env`):
 
 ```env
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/hackeurope
+GEMINI_API_KEY=your_gemini_api_key
+# Optional fallback (supported by backend): GCP_API_KEY=your_gemini_api_key
 ```
 
 Then run backend locally:
@@ -134,6 +136,9 @@ docker compose logs -f postgres
 
 - `python-dotenv could not parse statement`:
   - Ensure headings in `backend/.env` are commented with `#`.
+
+- `Missing Gemini API key`:
+  - Set `GEMINI_API_KEY` (preferred) or `GCP_API_KEY` in `backend/.env`.
 
 ## 8. Stop / Reset
 
