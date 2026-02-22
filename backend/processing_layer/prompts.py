@@ -23,7 +23,8 @@ def build_analysis_prompt(
 INVOICE_EXTRACTION_PROMPT = (
     "Extract all invoice data from this document. "
     "Pay special attention to: line items (description, quantity, unit price, net total per line), "
-    "tax/VAT total, subtotal (net sum of line items), and gross total (subtotal + tax). "
+    "tax/VAT total, subtotal (net sum of line items), gross total (subtotal + tax), "
+    "and vendor bank details including IBAN. "
     "Return structured JSON matching the schema exactly. "
     "Use null for missing fields."
 )
@@ -145,4 +146,3 @@ Is the charged unit price within {tolerance_pct}% of the historical average?
 
 Return JSON: {{"fulfilled": true/false, "explanation": "<one sentence>"}}
 """.strip()
-

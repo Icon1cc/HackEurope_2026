@@ -5,14 +5,17 @@ import { Sidebar } from '../components/Sidebar';
 import { Footer } from '../components/Footer';
 import { VercelBackground } from '../components/VercelBackground';
 import {
+  approveInvoice,
   decimalToNumber,
   dispatchInvoicesUpdatedEvent,
   fetchInvoiceById,
   fetchPaymentsByInvoice,
   fetchPaymentConfirmation,
+  fetchVendorById,
   formatCurrencyValue,
   updateInvoice,
   type InvoiceApiResponse,
+  type PaymentApiResponse,
   type PaymentConfirmationApiResponse,
 } from '../api/backend';
 import {
@@ -238,27 +241,60 @@ export default function ReviewDetail() {
   }, [reviewId]);
 
   const [paymentConfirmation, setPaymentConfirmation] = useState<PaymentConfirmationApiResponse | null>(null);
+  const [paymentRecord, setPaymentRecord] = useState<PaymentApiResponse | null>(null);
+  const [vendorIban, setVendorIban] = useState<string | null>(null);
 
   useEffect(() => {
     if (!invoice || (invoice.status !== 'paid' && invoice.status !== 'approved')) {
       setPaymentConfirmation(null);
+      setPaymentRecord(null);
+      setVendorIban(null);
       return;
     }
 
     let cancelled = false;
-    const loadConfirmation = async () => {
+    const loadPaymentData = async () => {
       try {
         const payments = await fetchPaymentsByInvoice(invoice.id);
-        const confirmed = payments.find((p) => p.status === 'confirmed');
-        if (!confirmed || cancelled) return;
-        const confirmation = await fetchPaymentConfirmation(confirmed.id);
+        if (cancelled) return;
+
+        const latestPayment = [...payments].sort(
+          (a, b) => new Date(b.initiated_at).getTime() - new Date(a.initiated_at).getTime(),
+        )[0] ?? null;
+        setPaymentRecord(latestPayment);
+
+        if (invoice.vendor_id) {
+          try {
+            const vendor = await fetchVendorById(invoice.vendor_id);
+            if (!cancelled) {
+              setVendorIban(vendor.registered_iban ?? null);
+            }
+          } catch {
+            if (!cancelled) {
+              setVendorIban(null);
+            }
+          }
+        } else {
+          setVendorIban(null);
+        }
+
+        if (!latestPayment || latestPayment.status !== 'confirmed') {
+          setPaymentConfirmation(null);
+          return;
+        }
+
+        const confirmation = await fetchPaymentConfirmation(latestPayment.id);
         if (!cancelled) setPaymentConfirmation(confirmation);
       } catch {
-        // Payment confirmation not available yet — silently ignore
+        if (!cancelled) {
+          setPaymentConfirmation(null);
+          setPaymentRecord(null);
+          setVendorIban(null);
+        }
       }
     };
 
-    void loadConfirmation();
+    void loadPaymentData();
     return () => { cancelled = true; };
   }, [invoice]);
 
@@ -315,7 +351,12 @@ export default function ReviewDetail() {
       paymentStatus: 'Statut',
       confirmedAt: 'Confirmé le',
       statusConfirmed: 'Confirmé',
+      statusInitiated: 'Initié',
+      statusPending: 'En attente',
+      statusFailed: 'Échoué',
+      statusUnknown: 'Inconnu',
       noIban: 'IBAN non renseigné',
+      paymentNotFound: 'Aucun enregistrement de paiement lié à cette facture.',
     },
     en: {
       title: 'Invoice',
@@ -364,7 +405,12 @@ export default function ReviewDetail() {
       paymentStatus: 'Status',
       confirmedAt: 'Confirmed at',
       statusConfirmed: 'Confirmed',
+      statusInitiated: 'Initiated',
+      statusPending: 'Pending',
+      statusFailed: 'Failed',
+      statusUnknown: 'Unknown',
       noIban: 'IBAN not provided',
+      paymentNotFound: 'No payment record is linked to this invoice.',
     },
     de: {
       title: 'Rechnung',
@@ -413,7 +459,12 @@ export default function ReviewDetail() {
       paymentStatus: 'Status',
       confirmedAt: 'Bestätigt am',
       statusConfirmed: 'Bestätigt',
+      statusInitiated: 'Gestartet',
+      statusPending: 'Ausstehend',
+      statusFailed: 'Fehlgeschlagen',
+      statusUnknown: 'Unbekannt',
       noIban: 'IBAN nicht angegeben',
+      paymentNotFound: 'Kein Zahlungseintrag mit dieser Rechnung verknüpft.',
     }
   }[language];
 
@@ -487,6 +538,60 @@ export default function ReviewDetail() {
       ? copy.reasoningFallbackRejected
       : copy.reasoningFallbackApproved
   ));
+  const paymentStatusValue = (
+    paymentConfirmation?.stripe_confirmation.status
+    ?? paymentRecord?.status
+    ?? ''
+  ).toLowerCase();
+  const paymentStatusLabel = (() => {
+    if (paymentStatusValue === 'confirmed' || paymentStatusValue === 'paid') {
+      return copy.statusConfirmed;
+    }
+    if (paymentStatusValue === 'initiated') {
+      return copy.statusInitiated;
+    }
+    if (paymentStatusValue === 'pending') {
+      return copy.statusPending;
+    }
+    if (paymentStatusValue === 'failed' || paymentStatusValue === 'canceled') {
+      return copy.statusFailed;
+    }
+    if (paymentStatusValue.length > 0) {
+      return paymentStatusValue.toUpperCase();
+    }
+    return copy.statusUnknown;
+  })();
+  const paymentStatusColor = (() => {
+    if (paymentStatusValue === 'confirmed' || paymentStatusValue === 'paid') {
+      return '#00FF94';
+    }
+    if (paymentStatusValue === 'initiated') {
+      return '#00F2FF';
+    }
+    if (paymentStatusValue === 'pending') {
+      return '#FFB800';
+    }
+    if (paymentStatusValue === 'failed' || paymentStatusValue === 'canceled') {
+      return '#FF0055';
+    }
+    return '#71717A';
+  })();
+  const paymentAmountValue = paymentConfirmation
+    ? formatCurrencyValue(
+        paymentConfirmation.stripe_confirmation.amount,
+        paymentConfirmation.stripe_confirmation.currency,
+      )
+    : (paymentRecord ? formatCurrencyValue(paymentRecord.amount, paymentRecord.currency) : '—');
+  const paymentConfirmedAt = paymentConfirmation?.stripe_confirmation.confirmed_at ?? paymentRecord?.confirmed_at ?? null;
+  const paymentTransferId = paymentConfirmation?.stripe_confirmation.transfer_id ?? paymentRecord?.stripe_payout_id ?? '—';
+  const extractedInvoiceIban = (() => {
+    if (!invoice || !isRecord(invoice.extracted_data)) {
+      return null;
+    }
+    const raw = invoice.extracted_data.vendor_iban;
+    return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
+  })();
+  const displayedIban = paymentConfirmation?.iban_vendor ?? vendorIban ?? extractedInvoiceIban;
 
   const handleApprove = async () => {
     if (decisionSubmitting) {
@@ -496,8 +601,8 @@ export default function ReviewDetail() {
     setDecisionSubmitting(true);
     setActionFeedback(null);
     try {
+      await approveInvoice(review.id);
       const updatedInvoice = await updateInvoice(review.id, {
-        status: 'approved',
         claude_summary: buildManualDecisionSummary('approved', currentReasons),
         auto_approved: false,
       });
@@ -764,7 +869,7 @@ export default function ReviewDetail() {
                 </div>
               )}
 
-              {paymentConfirmation && (
+              {!review.isReview && (review.rawStatus === 'approved' || review.rawStatus === 'paid') && (
                 <div
                   className="rounded-lg p-4 mb-4"
                   style={{
@@ -779,55 +884,68 @@ export default function ReviewDetail() {
                     </div>
                   </div>
 
-                  <div className="space-y-2.5">
-                    <div className="flex items-start gap-2">
-                      <Building2 className="w-3.5 h-3.5 text-[#71717A] mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.vendorIban}</div>
-                        <div className="text-sm text-[#E4E4E7] font-mono break-all">
-                          {paymentConfirmation.iban_vendor || copy.noIban}
+                  {(paymentRecord || paymentConfirmation || displayedIban) ? (
+                    <div className="space-y-2.5">
+                      <div className="flex items-start gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-[#71717A] mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.vendorIban}</div>
+                          <div className="text-sm text-[#E4E4E7] font-mono break-all">
+                            {displayedIban || copy.noIban}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-start gap-2">
-                      <CreditCard className="w-3.5 h-3.5 text-[#71717A] mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.transferId}</div>
-                        <div className="text-sm text-[#E4E4E7] font-mono break-all">
-                          {paymentConfirmation.stripe_confirmation.transfer_id ?? '—'}
+                      <div className="flex items-start gap-2">
+                        <CreditCard className="w-3.5 h-3.5 text-[#71717A] mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.transferId}</div>
+                          <div className="text-sm text-[#E4E4E7] font-mono break-all">
+                            {paymentTransferId}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.paymentAmount}</div>
-                        <div className="text-sm text-[#E4E4E7] font-semibold">
-                          {formatCurrencyValue(
-                            paymentConfirmation.stripe_confirmation.amount,
-                            paymentConfirmation.stripe_confirmation.currency,
-                          )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.paymentAmount}</div>
+                          <div className="text-sm text-[#E4E4E7] font-semibold">
+                            {paymentAmountValue}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.paymentStatus}</div>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className="inline-block w-1.5 h-1.5 rounded-full"
+                              style={{ background: paymentStatusColor }}
+                            />
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: paymentStatusColor }}
+                            >
+                              {paymentStatusLabel}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.paymentStatus}</div>
-                        <div className="flex items-center gap-1">
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#00FF94]" />
-                          <span className="text-sm text-[#00FF94] font-medium">{copy.statusConfirmed}</span>
-                        </div>
-                      </div>
-                    </div>
 
-                    {paymentConfirmation.stripe_confirmation.confirmed_at && (
-                      <div>
-                        <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.confirmedAt}</div>
-                        <div className="text-sm text-[#E4E4E7]">
-                          {new Date(paymentConfirmation.stripe_confirmation.confirmed_at).toLocaleString()}
+                      {paymentConfirmedAt && (
+                        <div>
+                          <div className="text-[10px] text-[#71717A] uppercase tracking-wider">{copy.confirmedAt}</div>
+                          <div className="text-sm text-[#E4E4E7]">
+                            {new Date(paymentConfirmedAt).toLocaleString()}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+
+                      {!paymentRecord && (
+                        <p className="text-xs text-[#71717A]">{copy.paymentNotFound}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#71717A]">{copy.paymentNotFound}</p>
+                  )}
                 </div>
               )}
 

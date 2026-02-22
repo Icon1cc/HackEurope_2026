@@ -89,6 +89,17 @@ export interface InvoiceUpdateApiRequest {
   auto_approved?: boolean | null;
 }
 
+export interface ApproveInvoiceApiResponse {
+  approved: boolean;
+  invoice_id: string;
+  payment: {
+    payment_id?: string;
+    transfer_id?: string | null;
+    status?: string;
+    error?: string;
+  } | null;
+}
+
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 const DEFAULT_API_VERSION = 'v1';
 export const INVOICES_UPDATED_EVENT = 'invoiceguard:invoices-updated';
@@ -184,20 +195,21 @@ async function requestJson<T>(path: string, query: URLSearchParams | null = null
 
 async function requestJsonWithBody<TResponse>(
   path: string,
-  method: 'PATCH',
-  body: unknown,
+  method: 'PATCH' | 'POST',
+  body?: unknown,
 ): Promise<TResponse> {
   const endpoint = buildApiUrl(path);
+  const hasBody = body !== undefined;
 
   let response: Response;
   try {
     response = await fetch(endpoint, {
       method,
       headers: {
-        'Content-Type': 'application/json',
         ...authHeaders(),
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       },
-      body: JSON.stringify(body),
+      ...(hasBody ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
     throw new Error(`Network error while requesting ${path}`);
@@ -296,6 +308,10 @@ export async function updateInvoice(
   payload: InvoiceUpdateApiRequest,
 ): Promise<InvoiceApiResponse> {
   return requestJsonWithBody<InvoiceApiResponse>(`/invoices/${invoiceId}`, 'PATCH', payload);
+}
+
+export async function approveInvoice(invoiceId: string): Promise<ApproveInvoiceApiResponse> {
+  return requestJsonWithBody<ApproveInvoiceApiResponse>(`/invoices/${invoiceId}/approve`, 'POST');
 }
 
 export async function fetchPaymentsByInvoice(invoiceId: string): Promise<PaymentApiResponse[]> {

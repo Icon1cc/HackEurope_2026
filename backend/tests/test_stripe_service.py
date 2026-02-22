@@ -75,7 +75,8 @@ class TestExecuteVendorPayment:
         )
 
         mock_transfer.assert_not_called()
-        assert result["transfer_id"] is None
+        assert isinstance(result["transfer_id"], str)
+        assert result["transfer_id"].startswith("local_tr_")
         assert result["status"] == "initiated"
 
     async def test_vendor_not_found(self, db_session):
@@ -106,6 +107,31 @@ class TestExecuteVendorPayment:
                 db=db_session,
             )
 
-        assert result["transfer_id"] is None
+        assert isinstance(result["transfer_id"], str)
+        assert result["transfer_id"].startswith("local_tr_")
         assert result["status"] == "initiated"
         assert "payment_id" in result
+
+    @patch("app.services.stripe_service.stripe.Transfer.create")
+    async def test_internal_transfer_ids_are_unique(self, mock_transfer, db_session):
+        vendor = await self._create_vendor(db_session, stripe_account_id=None)
+        invoice_1 = await self._create_invoice(db_session, vendor.id)
+        invoice_2 = await self._create_invoice(db_session, vendor.id)
+
+        first = await execute_vendor_payment(
+            invoice_id=invoice_1.id,
+            vendor_id=vendor.id,
+            amount_euros=10.00,
+            db=db_session,
+        )
+        second = await execute_vendor_payment(
+            invoice_id=invoice_2.id,
+            vendor_id=vendor.id,
+            amount_euros=20.00,
+            db=db_session,
+        )
+
+        assert first["transfer_id"].startswith("local_tr_")
+        assert second["transfer_id"].startswith("local_tr_")
+        assert first["transfer_id"] != second["transfer_id"]
+        mock_transfer.assert_not_called()

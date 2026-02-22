@@ -61,6 +61,10 @@ curl -X POST http://localhost:8000/api/v1/invoices/{id}/approve \
 }
 ```
 
+`transfer_id` behavior:
+- If Stripe transfer is created successfully, it is the real Stripe transfer id (`tr_...`).
+- If Stripe transfer is skipped or fails (e.g., no connected account in dev), the backend now stores a unique internal id (`local_tr_<uuid>`), so every payment still has a distinct transfer identifier.
+
 ### POST /api/v1/billing/create-checkout-session
 **Auth:** Bearer token required
 
@@ -96,12 +100,13 @@ Handles Stripe webhook events. Verifies the `stripe-signature` header against `S
 
 When the AI extraction pipeline scores an invoice >= the vendor's `auto_approve_threshold`:
 
-1. `extraction.py` sets `invoice.status = "approved"` and `invoice.auto_approved = True`
-2. After DB commit, calls `execute_vendor_payment()`
-3. The service looks up the vendor's `stripe_account_id`
-4. If the vendor has a connected account, creates a `stripe.Transfer`
-5. Creates a `Payment` record with `status="initiated"`
-6. Stripe later sends `transfer.paid` webhook -> Payment confirmed, Invoice marked as paid
+1. `extraction.py` extracts `vendor_iban` from the invoice and stores it on the vendor (`registered_iban`).
+2. `extraction.py` sets `invoice.status = "approved"` and `invoice.auto_approved = True`
+3. After DB commit, calls `execute_vendor_payment()`
+4. The service looks up the vendor's `stripe_account_id`
+5. If the vendor has a connected account, creates a `stripe.Transfer`
+6. Creates a `Payment` record with `status="initiated"`
+7. Stripe later sends `transfer.paid` webhook -> Payment confirmed, Invoice marked as paid
 
 ## Vendor Setup
 

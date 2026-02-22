@@ -10,6 +10,7 @@ export interface InvoiceExtractionPayload {
   invoice_number: string | null;
   due_date: string | null;
   vendor_name: string | null;
+  vendor_iban: string | null;
   vendor_address: string | null;
   client_name: string | null;
   client_address: string | null;
@@ -57,6 +58,7 @@ export interface ExtractionInvoice {
 export interface ExtractionVendor {
   id: string;
   name: string;
+  registered_iban: string | null;
   vendor_address: string | null;
 }
 

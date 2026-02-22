@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
@@ -133,6 +134,7 @@ async def extract_invoice(
     extraction = extraction.model_copy(
         update={
             "vendor_name": _normalize_vendor_name(extraction.vendor_name),
+            "vendor_iban": _normalize_iban(extraction.vendor_iban),
             "vendor_address": _normalize_optional_text(extraction.vendor_address),
             "client_name": _normalize_optional_text(extraction.client_name),
             "client_address": _normalize_optional_text(extraction.client_address),
@@ -142,6 +144,7 @@ async def extract_invoice(
     vendor = await _get_or_create_vendor(
         db=db,
         vendor_name=extraction.vendor_name,
+        vendor_iban=extraction.vendor_iban,
         vendor_address=extraction.vendor_address,
     )
 
@@ -159,6 +162,7 @@ async def extract_invoice(
     vendor_payload = {
         "id": str(vendor.id),
         "name": vendor.name,
+        "registered_iban": vendor.registered_iban,
         "vendor_address": vendor.vendor_address,
     }
     invoice_payload = {
@@ -351,24 +355,51 @@ async def extract_invoice(
 async def _get_or_create_vendor(
     db: AsyncSession,
     vendor_name: str | None,
+    vendor_iban: str | None,
     vendor_address: str | None,
 ) -> Vendor:
     name = _normalize_vendor_name(vendor_name)
     name_key = name.casefold()
     result = await db.execute(select(Vendor).where(func.lower(Vendor.name) == name_key))
     vendor = result.scalar_one_or_none()
+    iban = _normalize_iban(vendor_iban)
     address = _normalize_optional_text(vendor_address)
 
     if vendor is None:
         vendor = Vendor(
             name=name,
             category="computing",
+            registered_iban=iban,
             vendor_address=address,
         )
         db.add(vendor)
         await db.flush()
-    elif address and not vendor.vendor_address:
+        return vendor
+
+    changed = False
+
+    if address and not vendor.vendor_address:
         vendor.vendor_address = address
+        changed = True
+
+    if iban:
+        current_iban = _normalize_iban(vendor.registered_iban)
+        if current_iban is None:
+            vendor.registered_iban = iban
+            changed = True
+        elif current_iban != iban:
+            vendor.known_iban_changes = _append_iban_change(
+                vendor.known_iban_changes,
+                previous_iban=current_iban,
+                new_iban=iban,
+            )
+            vendor.registered_iban = iban
+            changed = True
+        elif vendor.registered_iban != iban:
+            vendor.registered_iban = iban
+            changed = True
+
+    if changed:
         await db.flush()
 
     return vendor
@@ -459,6 +490,7 @@ async def _build_vendor_context_payload(
         "vendor": {
             "id": str(vendor.id),
             "name": vendor.name,
+            "registered_iban": vendor.registered_iban,
             "vendor_address": vendor.vendor_address,
         },
         "invoices": [_invoice_to_context_payload(i) for i in invoices],
@@ -586,6 +618,50 @@ def _normalize_vendor_name(vendor_name: str | None) -> str:
     if normalized.casefold() in PLACEHOLDER_VENDOR_NAMES:
         return DEFAULT_VENDOR_NAME
     return normalized
+
+
+def _normalize_iban(raw_iban: str | None) -> str | None:
+    normalized = _normalize_optional_text(raw_iban)
+    if normalized is None:
+        return None
+
+    compact = re.sub(r"[^A-Za-z0-9]", "", normalized).upper()
+    if len(compact) < 15 or len(compact) > 34:
+        return None
+    if re.fullmatch(r"[A-Z]{2}[0-9A-Z]{13,32}", compact) is None:
+        return None
+    return compact
+
+
+def _append_iban_change(
+    existing_changes: Any,
+    previous_iban: str,
+    new_iban: str,
+) -> list[dict[str, str]]:
+    changes: list[dict[str, str]] = []
+    if isinstance(existing_changes, list):
+        for entry in existing_changes:
+            if isinstance(entry, dict):
+                normalized_entry = {
+                    "previous_iban": str(entry.get("previous_iban", "")),
+                    "new_iban": str(entry.get("new_iban", "")),
+                    "detected_at": str(entry.get("detected_at", "")),
+                }
+                changes.append(normalized_entry)
+
+    already_recorded = any(
+        entry.get("previous_iban") == previous_iban and entry.get("new_iban") == new_iban
+        for entry in changes
+    )
+    if not already_recorded:
+        changes.append(
+            {
+                "previous_iban": previous_iban,
+                "new_iban": new_iban,
+                "detected_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    return changes
 
 
 def _normalize_confidence_score(value: Any) -> int:

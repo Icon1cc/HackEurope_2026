@@ -14,6 +14,7 @@ class InvoiceExtraction(BaseModel):
     # invoice_date: str | None  # ISO string — not yet in DB, will add later
     due_date: str | None
     vendor_name: str | None
+    vendor_iban: str | None = None
     vendor_address: str | None
     client_name: str | None
     client_address: str | None
