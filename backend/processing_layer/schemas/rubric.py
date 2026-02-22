@@ -9,7 +9,7 @@ class CriterionId(str, Enum):
     FORMAL_VALIDITY = "formal_validity"              # invoice-level: required fields, dates, no duplicate
     MARKET_PRICE_ALIGNED = "market_price_aligned"
     HISTORICAL_PRICE_CONSISTENT = "historical_price_consistent"
-    COMPETITOR_PRICE_ALIGNED = "competitor_price_aligned"
+    VENDOR_TOTAL_DRIFT = "vendor_total_drift"           # invoice-level: total vs historical mean
 
 
 class CriterionVerdict(BaseModel):

@@ -17,7 +17,7 @@ CRITERIA: list[Criterion] = [
     Criterion(CriterionId.FORMAL_VALIDITY,            20.0, "JUDGE_FORMAL_VALIDITY",  is_invoice_level=True),
     Criterion(CriterionId.MARKET_PRICE_ALIGNED,       27.0, "JUDGE_MARKET_PRICE"),
     Criterion(CriterionId.HISTORICAL_PRICE_CONSISTENT, 27.0, "JUDGE_HISTORICAL_PRICE"),
-    Criterion(CriterionId.COMPETITOR_PRICE_ALIGNED,   26.0, "JUDGE_COMPETITOR_PRICE"),
+    Criterion(CriterionId.VENDOR_TOTAL_DRIFT,          26.0, "JUDGE_VENDOR_TOTAL_DRIFT", is_invoice_level=True),
 ]
 
 assert abs(sum(c.max_points for c in CRITERIA) - 100.0) < 1e-9, (

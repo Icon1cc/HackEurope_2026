@@ -59,9 +59,15 @@ Invoice document (PDF / image)
    Deterministic Python math on context → human-readable price signals
    In:  InvoiceExtraction + dict (context)
    Out: schemas/signals.py → list[PriceSignal]  (statement, is_anomalous, SignalType, SignalScope)
-   Key: signals/compute.py:compute_signals()   ← stub (backend computes signals inline)
+   Key: signals/compute.py:compute_signals()   ← implemented; context dict keys: "invoices", "cloud_pricing"
         schemas/signals.py
         constants.py:PRICE_TOLERANCE_PCT
+
+   Signals produced → criterion they feed:
+     DUPLICATE_INVOICE   → FORMAL_VALIDITY
+     MARKET_DEVIATION    → MARKET_PRICE_ALIGNED    (only if CloudPricing row matches line item)
+     HISTORICAL_DEVIATION→ HISTORICAL_PRICE_CONSISTENT (only if prior invoice matches line item)
+     VENDOR_TOTAL_DRIFT  → VENDOR_TOTAL_DRIFT       (only if prior invoices exist)
 
         │
         ▼
@@ -72,14 +78,16 @@ Invoice document (PDF / image)
    Key: rubric/criteria.py:CRITERIA
         rubric/evaluator.py:evaluate_criterion()   ← deterministic signal-based implementation
         rubric/scoring.py:aggregate_score()
-        prompts.py:JUDGE_FORMAL_VALIDITY / JUDGE_MARKET_PRICE / JUDGE_HISTORICAL_PRICE / JUDGE_COMPETITOR_PRICE
+        prompts.py:JUDGE_FORMAL_VALIDITY / JUDGE_MARKET_PRICE / JUDGE_HISTORICAL_PRICE
         constants.py:PRICE_TOLERANCE_PCT
 
    Criteria (weights sum to 100, enforced at import):
      FORMAL_VALIDITY             20 pts  — invoice-level: required fields, dates, no duplicate ID
      MARKET_PRICE_ALIGNED        27 pts  — vs real-time market spot       (per line item)
      HISTORICAL_PRICE_CONSISTENT 27 pts  — vs past vendor invoices        (per line item)
-     COMPETITOR_PRICE_ALIGNED    26 pts  — vs similar vendors in DB       (per line item)
+     VENDOR_TOTAL_DRIFT          26 pts  — invoice total vs vendor history (invoice-level)
+
+   Criteria with data_available=False excluded from denominator; score=100 if none have data.
 
         │
         ▼
@@ -90,6 +98,8 @@ Invoice document (PDF / image)
    Key: analysis/invoice.py:InvoiceAnalyzer._build_prompt() / _run_pipeline()
         prompts.py:INVOICE_ANALYSIS_PROMPT
    Note: signals injected post-generation — LLM cannot overwrite them
+   Note: AnomalyFlag (type/severity/confidence) is LLM-assigned narrative — NOT used for routing.
+         Routing is driven entirely by rubric.total_score + formal_failed + is_duplicate.
 
         │
         ▼
@@ -166,7 +176,7 @@ This module lives at `backend/processing_layer/`. The backend extraction endpoin
 | `llm/gemini.py:GeminiProvider` | ✅ Used — both LLM calls |
 | `schemas/*` | ✅ Used |
 | `analysis/invoice.py:InvoiceAnalyzer` | ❌ Bypassed — backend has own pipeline |
-| `signals/compute.py:compute_signals()` | ❌ Bypassed — backend computes signals inline |
+| `signals/compute.py:compute_signals()` | ✅ Used — called from extraction router |
 | `tools/SqlDatabaseTool` | ❌ Unused — backend uses SQLAlchemy repos |
 | `tools/MarketDataTool` | ❌ Unused |
-| `negotiation/agent.py:NegotiationAgent` | ⚠️ Implemented, not yet wired to any endpoint |
+| `negotiation/agent.py:NegotiationAgent` | ✅ Used — runs on ESCALATE_NEGOTIATION (non-duplicate) |

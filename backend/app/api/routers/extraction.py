@@ -21,16 +21,17 @@ from app.models.invoice import Invoice
 from app.models.item import Item
 from app.models.vendor import Vendor
 from processing_layer.extraction.invoice import InvoiceExtractor
-from processing_layer.prompts import INVOICE_ANALYSIS_PROMPT
+from processing_layer.negotiation.agent import NegotiationAgent
+from processing_layer.prompts import build_analysis_prompt
 from processing_layer.routing.decision import decide
 from processing_layer.rubric.evaluator import evaluate_rubric
 from processing_layer.schemas.analysis import InvoiceAnalysis
 from processing_layer.llm.factory import get_provider
 from processing_layer.schemas.invoice import InvoiceExtraction
 from processing_layer.schemas.result import InvoiceAction
+from app.core.dependencies import get_current_user
 from app.services.stripe_service import execute_vendor_payment
-from processing_layer.schemas.rubric import InvoiceRubric
-from processing_layer.schemas.signals import PriceSignal, SignalScope, SignalType
+from processing_layer.signals.compute import compute_signals
 
 load_dotenv()
 
@@ -119,6 +120,9 @@ async def extract_invoice(
             detail=f"Invoice extraction failed: {_exception_message(exc)}",
         ) from exc
 
+    logger.info("[1/5] extraction  vendor=%r  items=%d  total=%s",
+                extraction.vendor_name, len(extraction.line_items), extraction.total)
+
     extraction = extraction.model_copy(
         update={
             "vendor_name": _normalize_vendor_name(extraction.vendor_name),
@@ -168,13 +172,21 @@ async def extract_invoice(
     second_pass: dict[str, Any] | None = None
     second_pass_error: str | None = None
     try:
-        signals = _compute_signals(
+        signals = compute_signals(
             extraction=extraction,
-            context_payload=context_payload,
+            context=context_payload,
             current_invoice_id=invoice_payload["id"],
         )
+        logger.info("[2/5] signals    total=%d  anomalous=%d  prior_invoices=%d  pricing_rows=%d",
+                    len(signals), sum(1 for s in signals if s.is_anomalous),
+                    len(context_payload["invoices"]), len(context_payload["cloud_pricing"]))
+
         rubric = evaluate_rubric(extraction=extraction, signals=signals, grader=provider)
-        second_prompt = _build_second_pass_prompt(
+        logger.info("[3/5] rubric     score=%d  criteria=%s",
+                    rubric.total_score,
+                    {r.criterion_id: r.verdict for r in rubric.criterion_results})
+
+        second_prompt = build_analysis_prompt(
             extraction=extraction,
             signals=signals,
             rubric=rubric,
@@ -187,7 +199,22 @@ async def extract_invoice(
             InvoiceAnalysis,
         )
         analysis = analysis.model_copy(update={"signals": signals})
+        logger.info("[4/5] analysis   duplicate=%s  flags=%d  summary=%r",
+                    analysis.is_duplicate, len(analysis.anomaly_flags),
+                    (analysis.summary or "")[:120])
+
         decision = decide(analysis=analysis, confidence_score=rubric.total_score, rubric=rubric)
+        logger.info("[5/5] decision   action=%s  reason=%r", decision.action, decision.reason[:100])
+
+        if decision.action == InvoiceAction.ESCALATE_NEGOTIATION and not analysis.is_duplicate:
+            try:
+                agent = NegotiationAgent(provider=provider)
+                draft = await loop.run_in_executor(_executor, agent.draft_email, analysis)
+                invoice.negotiation_email = draft.body
+                logger.info("[+]   negotiation draft generated  subject=%r  key_points=%d",
+                            draft.subject, len(draft.key_points))
+            except Exception as e:
+                logger.warning("NegotiationAgent failed: %s", e)
 
         invoice.anomalies = [a.model_dump(mode="json") for a in analysis.anomaly_flags]
         invoice.market_benchmarks = {
@@ -461,155 +488,6 @@ def _get_pricing_limit() -> int:
         value = 5
     return max(1, min(value, 100))
 
-
-def _build_second_pass_prompt(
-    extraction: InvoiceExtraction,
-    signals: list[PriceSignal],
-    rubric: InvoiceRubric,
-) -> str:
-    signals_text = "\n".join(f"- {s.statement}" for s in signals) or "No quantitative signals available."
-    anomalous_signals_text = "\n".join(f"- {s.statement}" for s in signals if s.is_anomalous) or "None."
-    return INVOICE_ANALYSIS_PROMPT.format(
-        invoice_json=extraction.model_dump_json(indent=2),
-        signals_text=signals_text,
-        anomalous_signals_text=anomalous_signals_text,
-        confidence_score=rubric.total_score,
-    )
-
-
-def _compute_signals(
-    extraction: InvoiceExtraction,
-    context_payload: dict[str, Any],
-    current_invoice_id: str,
-) -> list[PriceSignal]:
-    signals: list[PriceSignal] = []
-    prior_invoices = [i for i in context_payload.get("invoices", []) if i.get("id") != current_invoice_id]
-
-    duplicate_count = 0
-    if extraction.invoice_number:
-        duplicate_count = sum(
-            1 for inv in context_payload.get("invoices", [])
-            if inv.get("invoice_number") == extraction.invoice_number
-        )
-    if duplicate_count > 1:
-        signals.append(
-            PriceSignal(
-                signal_type=SignalType.DUPLICATE_INVOICE,
-                scope=SignalScope.INVOICE,
-                statement=(
-                    f"Invoice number {extraction.invoice_number} appears {duplicate_count} times for this vendor."
-                ),
-                is_anomalous=True,
-            )
-        )
-
-    pricing_rows = context_payload.get("cloud_pricing", [])
-    for line_item in extraction.line_items:
-        market_ref = _find_market_reference_price(line_item.description, pricing_rows)
-        if market_ref is not None and market_ref > 0:
-            deviation_pct = ((line_item.unit_price - market_ref) / market_ref) * 100.0
-            signals.append(
-                PriceSignal(
-                    signal_type=SignalType.MARKET_DEVIATION,
-                    scope=SignalScope.LINE_ITEM,
-                    line_item_description=line_item.description,
-                    invoice_value=line_item.unit_price,
-                    reference_value=market_ref,
-                    deviation_pct=deviation_pct,
-                    statement=(
-                        f"{line_item.description}: billed {line_item.unit_price:.6f} "
-                        f"vs market {market_ref:.6f} ({deviation_pct:+.2f}%)."
-                    ),
-                    is_anomalous=abs(deviation_pct) > 15.0,
-                )
-            )
-
-        historical_ref = _find_historical_reference_price(line_item.description, prior_invoices)
-        if historical_ref is not None and historical_ref > 0:
-            deviation_pct = ((line_item.unit_price - historical_ref) / historical_ref) * 100.0
-            signals.append(
-                PriceSignal(
-                    signal_type=SignalType.HISTORICAL_DEVIATION,
-                    scope=SignalScope.LINE_ITEM,
-                    line_item_description=line_item.description,
-                    invoice_value=line_item.unit_price,
-                    reference_value=historical_ref,
-                    deviation_pct=deviation_pct,
-                    statement=(
-                        f"{line_item.description}: billed {line_item.unit_price:.6f} "
-                        f"vs historical {historical_ref:.6f} ({deviation_pct:+.2f}%)."
-                    ),
-                    is_anomalous=abs(deviation_pct) > 15.0,
-                )
-            )
-
-    if extraction.total is not None and prior_invoices:
-        historical_totals = [
-            _to_float(inv.get("total"))
-            for inv in prior_invoices
-            if inv.get("total") is not None
-        ]
-        historical_totals = [v for v in historical_totals if v is not None]
-        if historical_totals:
-            reference_total = sum(historical_totals) / len(historical_totals)
-            if reference_total > 0:
-                deviation_pct = ((float(extraction.total) - reference_total) / reference_total) * 100.0
-                signals.append(
-                    PriceSignal(
-                        signal_type=SignalType.VENDOR_TOTAL_DRIFT,
-                        scope=SignalScope.INVOICE,
-                        invoice_value=float(extraction.total),
-                        reference_value=reference_total,
-                        deviation_pct=deviation_pct,
-                        statement=(
-                            f"Invoice total {float(extraction.total):.2f} vs vendor historical mean "
-                            f"{reference_total:.2f} ({deviation_pct:+.2f}%)."
-                        ),
-                        is_anomalous=abs(deviation_pct) > 25.0,
-                    )
-                )
-
-    return signals
-
-
-def _find_market_reference_price(description: str, pricing_rows: list[dict[str, Any]]) -> float | None:
-    description_lc = description.lower()
-    for row in pricing_rows:
-        service_name = str(row.get("service_name") or "").lower()
-        sku_id = str(row.get("sku_id") or "").lower()
-        if (
-            service_name
-            and (service_name in description_lc or description_lc in service_name)
-        ) or (sku_id and sku_id in description_lc):
-            candidate = _to_float(row.get("price_per_unit")) or _to_float(row.get("price_per_hour"))
-            if candidate is not None and candidate > 0:
-                return candidate
-    return None
-
-
-def _find_historical_reference_price(description: str, invoices: list[dict[str, Any]]) -> float | None:
-    target = description.strip().lower()
-    samples: list[float] = []
-    for invoice in invoices:
-        for line_item in invoice.get("line_items", []):
-            candidate_desc = str(line_item.get("description") or "").strip().lower()
-            if candidate_desc != target:
-                continue
-            unit_price = _to_float(line_item.get("unit_price"))
-            if unit_price is not None and unit_price > 0:
-                samples.append(unit_price)
-    if not samples:
-        return None
-    return sum(samples) / len(samples)
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _invoice_status_from_action(action: InvoiceAction) -> str:

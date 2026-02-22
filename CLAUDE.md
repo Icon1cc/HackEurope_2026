@@ -58,20 +58,27 @@ Schemas   Business    DB queries
 
 **Rubric criteria (`rubric/criteria.py`) — weights sum to 100:**
 
-| Criterion | Weight | Scope | Prompt key |
+| Criterion | Weight | Scope | Signal source |
 |---|---|---|---|
-| `FORMAL_VALIDITY` | 20 pts | invoice-level | `JUDGE_FORMAL_VALIDITY` |
-| `MARKET_PRICE_ALIGNED` | 27 pts | per line item | `JUDGE_MARKET_PRICE` |
-| `HISTORICAL_PRICE_CONSISTENT` | 27 pts | per line item | `JUDGE_HISTORICAL_PRICE` |
-| `COMPETITOR_PRICE_ALIGNED` | 26 pts | per line item | `JUDGE_COMPETITOR_PRICE` |
+| `FORMAL_VALIDITY` | 20 pts | invoice-level | `DUPLICATE_INVOICE` signal + field checks |
+| `MARKET_PRICE_ALIGNED` | 27 pts | per line item | `MARKET_DEVIATION` signal (needs CloudPricing match) |
+| `HISTORICAL_PRICE_CONSISTENT` | 27 pts | per line item | `HISTORICAL_DEVIATION` signal (needs prior invoice match) |
+| `VENDOR_TOTAL_DRIFT` | 26 pts | invoice-level | `VENDOR_TOTAL_DRIFT` signal (needs prior invoices) |
+
+Criteria where no signal/data is found → `data_available=False` → excluded from score denominator (score = available points / available max × 100).
+
+**`AnomalyFlag` (LLM-generated, NOT used for routing):**
+- Produced by Gemini call #2 inside `InvoiceAnalysis` — LLM freely assigns `anomaly_type`, `severity`, `confidence` based on signal statements it receives
+- Stored in `invoice.anomalies` for UI display and fed into negotiation email prompt
+- **Routing decision uses only `rubric.total_score`, `formal_failed`, and `analysis.is_duplicate`** — `anomaly_flags` have no effect on APPROVED / HUMAN_REVIEW / ESCALATE_NEGOTIATION
 
 **Current state (standalone processing_layer module):**
 - Extraction: fully implemented
-- Rubric schemas + scoring + criteria + routing: implemented; `evaluate_criterion` supports deterministic signal-based evaluation (competitor criterion unavailable without source data)
+- Rubric schemas + scoring + criteria + routing: fully implemented with deterministic signal-based evaluation
+- `signals/compute.py:compute_signals()`: **implemented** — computes DUPLICATE_INVOICE, MARKET_DEVIATION, HISTORICAL_DEVIATION, VENDOR_TOTAL_DRIFT signals from dict context
 - Analysis + negotiation: scaffolded end-to-end; `InvoiceAnalyzer` orchestrates full pipeline but is **bypassed** by the backend extraction endpoint (backend has its own inline pipeline)
-- `signals/compute.py`: stub — raises `NotImplementedError` (backend computes signals inline)
 - `tools/` (`SqlDatabaseTool`, `MarketDataTool`): stubs — backend uses SQLAlchemy repos directly
-- `NegotiationAgent`: fully implemented; not yet wired to any backend endpoint
+- `NegotiationAgent`: fully implemented; wired to backend endpoint (runs on ESCALATE_NEGOTIATION, non-duplicate)
 
 ### Processing Layer Integration (backend `/api/v1/extraction/`)
 
@@ -84,14 +91,14 @@ The backend extraction endpoint uses `backend/processing_layer/` components dire
 | 3. Vendor upsert | SQLAlchemy repo (not tool stubs) |
 | 4–5. Invoice + Items create + commit | ORM direct |
 | 6. Context build | DB queries (prior invoices + CloudPricing) |
-| 7. Signal computation | **Inline in extraction.py** — `compute_signals()` from processing_layer NOT used |
+| 7. Signal computation | `signals/compute.py:compute_signals()` — dict context, returns `list[PriceSignal]` |
 | 8. Rubric evaluation | `rubric/evaluator.py:evaluate_rubric()` → `InvoiceRubric` |
 | 9. Gemini call #2 | `llm/gemini.py:GeminiProvider.generate_structured()` → `InvoiceAnalysis` |
 | 10. Routing | `routing/decision.py:decide()` → `InvoiceDecision` |
 | 11. DB update | Attach analysis + rubric + status; commit |
 | 12. Response | `{vendor, invoice, extraction, vendor_context, second_pass}` |
 
-**Bypassed / not wired:** `InvoiceAnalyzer`, `compute_signals()`, `SqlDatabaseTool`, `MarketDataTool`, `NegotiationAgent`
+**Bypassed / not wired:** `InvoiceAnalyzer` (backend has own inline pipeline), `SqlDatabaseTool`, `MarketDataTool`
 
 ## Common Commands
 

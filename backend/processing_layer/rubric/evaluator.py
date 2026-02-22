@@ -52,6 +52,17 @@ def evaluate_criterion(
     if not isinstance(signals, list):
         signals = []
 
+    if criterion.id == CriterionId.VENDOR_TOTAL_DRIFT:
+        signal = next(
+            (s for s in signals if isinstance(s, PriceSignal) and s.signal_type == SignalType.VENDOR_TOTAL_DRIFT),
+            None,
+        )
+        return _criterion_result_from_signal(
+            criterion=criterion,
+            line_item_description="invoice",
+            signal=signal,
+        )
+
     if criterion.id == CriterionId.FORMAL_VALIDITY:
         if not isinstance(extraction, InvoiceExtraction):
             return CriterionResult(
@@ -115,15 +126,7 @@ def evaluate_criterion(
             signal=signal,
         )
 
-    # COMPETITOR_PRICE_ALIGNED currently has no deterministic source signal.
-    return CriterionResult(
-        criterion_id=criterion.id,
-        line_item_description=line_item.description,
-        verdict=None,
-        points_awarded=0.0,
-        max_points=criterion.max_points,
-        data_available=False,
-    )
+    raise AssertionError(f"unhandled criterion: {criterion.id}")
 
 
 def _criterion_result_from_signal(

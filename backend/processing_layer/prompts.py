@@ -1,3 +1,25 @@
+from __future__ import annotations
+
+from .schemas.invoice import InvoiceExtraction
+from .schemas.rubric import InvoiceRubric
+from .schemas.signals import PriceSignal
+
+
+def build_analysis_prompt(
+    extraction: InvoiceExtraction,
+    signals: list[PriceSignal],
+    rubric: InvoiceRubric,
+) -> str:
+    signals_text = "\n".join(f"- {s.statement}" for s in signals) or "No quantitative signals available."
+    anomalous_signals_text = "\n".join(f"- {s.statement}" for s in signals if s.is_anomalous) or "None."
+    return INVOICE_ANALYSIS_PROMPT.format(
+        invoice_json=extraction.model_dump_json(indent=2),
+        signals_text=signals_text,
+        anomalous_signals_text=anomalous_signals_text,
+        confidence_score=rubric.total_score,
+    )
+
+
 INVOICE_EXTRACTION_PROMPT = (
     "Extract all invoice data from this document. "
     "Return structured JSON matching the schema exactly. "
@@ -122,20 +144,3 @@ Is the charged unit price within {tolerance_pct}% of the historical average?
 Return JSON: {{"fulfilled": true/false, "explanation": "<one sentence>"}}
 """.strip()
 
-JUDGE_COMPETITOR_PRICE = """
-You are a price auditor. Answer only yes or no, then give one sentence of rationale.
-
-## LINE ITEM
-Description: {description}
-Quantity: {quantity} {unit}
-Charged unit price: {unit_price} {currency}
-
-## COMPETITOR REFERENCE
-Average unit price from similar vendors: {competitor_avg_price} {currency}
-Tolerance: ±{tolerance_pct}%
-
-## QUESTION
-Is the charged unit price within {tolerance_pct}% of the competitor average?
-
-Return JSON: {{"fulfilled": true/false, "explanation": "<one sentence>"}}
-""".strip()
