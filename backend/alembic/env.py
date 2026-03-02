@@ -6,24 +6,18 @@ from alembic import context
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# this is the Alembic Config object
 config = context.config
 
-# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
 from app.core.database import Base
 import app.models  # noqa: F401 — registers all models with Base.metadata
 
 target_metadata = Base.metadata
 
-# Set sqlalchemy.url from DATABASE_URL
 database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/hackeurope")
 config.set_main_option("sqlalchemy.url", database_url)
 

@@ -15,7 +15,6 @@ from app.core.dependencies import get_cloud_pricing_service
 router = APIRouter(prefix="/pricing", tags=["pricing"])
 
 
-# ── Sync ──────────────────────────────────────────────────────────────────
 
 @router.post("/sync", summary="Trigger full pricing data refresh", response_model=SyncStatus)
 async def trigger_sync(
@@ -34,7 +33,6 @@ async def sync_status(service: CloudPricingService = Depends(get_cloud_pricing_s
     return await service.get_sync_status()
 
 
-# ── Browse / query ────────────────────────────────────────────────────────
 
 @router.get("/", summary="List and filter pricing SKUs", response_model=list[CloudPricingResponse])
 async def list_pricing(
@@ -65,7 +63,6 @@ async def get_pricing_by_id(
     return item
 
 
-# ── Invoice checker ───────────────────────────────────────────────────────
 
 @router.post(
     "/invoice/check",

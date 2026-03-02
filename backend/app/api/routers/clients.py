@@ -12,6 +12,7 @@ async def get_all(skip: int = 0, limit: int = 100, service: ClientService = Depe
     return await service.get_all_clients(skip, limit)
 
 
+
 @router.get("/{id}", response_model=ClientResponse)
 async def get_one(id: UUID, service: ClientService = Depends(get_client_service)):
     client = await service.get_client(id)
