@@ -16,5 +16,4 @@ class Client(Base):
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
-    # One client → many invoices
     invoices = relationship("Invoice", back_populates="client")

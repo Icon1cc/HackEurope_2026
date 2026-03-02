@@ -35,7 +35,6 @@ GCP_KEY = (
 MAX_RECORDS = int(os.getenv("PRICING_MAX_RECORDS", "5"))
 
 
-# ── helpers ───────────────────────────────────────────────────────────────
 
 def _stream_aws_csv(url: str, max_lines: int = 60_000) -> Tuple[List[str], List[Dict]]:
     resp = requests.get(url, stream=True, timeout=_TIMEOUT_LONG)
@@ -76,7 +75,6 @@ def _stream_aws_csv(url: str, max_lines: int = 60_000) -> Tuple[List[str], List[
     return headers, rows
 
 
-# ── 1. Infracost GraphQL ─────────────────────────────────────────────────
 
 def fetch_infracost() -> Dict:
     if not INFRACOST_KEY:
@@ -175,7 +173,6 @@ def fetch_infracost() -> Dict:
     }
 
 
-# ── 2. AWS EC2 ───────────────────────────────────────────────────────────
 
 def fetch_aws_ec2() -> Dict:
     url = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/eu-west-1/index.csv"
@@ -202,7 +199,6 @@ def fetch_aws_ec2() -> Dict:
         return {"status": "error", "error": str(exc)}
 
 
-# ── 3. AWS S3 ────────────────────────────────────────────────────────────
 
 def fetch_aws_s3() -> Dict:
     url = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/current/eu-west-1/index.csv"
@@ -225,7 +221,6 @@ def fetch_aws_s3() -> Dict:
         return {"status": "error", "error": str(exc)}
 
 
-# ── 4. AWS RDS ───────────────────────────────────────────────────────────
 
 def fetch_aws_rds() -> Dict:
     url = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/eu-west-1/index.csv"
@@ -250,7 +245,6 @@ def fetch_aws_rds() -> Dict:
         return {"status": "error", "error": str(exc)}
 
 
-# ── 5. AWS CloudFront ────────────────────────────────────────────────────
 
 def fetch_aws_cloudfront() -> Dict:
     url = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonCloudFront/current/index.csv"
@@ -273,7 +267,6 @@ def fetch_aws_cloudfront() -> Dict:
         return {"status": "error", "error": str(exc)}
 
 
-# ── 6. Azure Retail Prices ───────────────────────────────────────────────
 
 def fetch_azure() -> Dict:
     all_items = []
@@ -303,7 +296,6 @@ def fetch_azure() -> Dict:
         return {"status": "error", "error": str(exc)}
 
 
-# ── 7. GCP Cloud Billing Catalog ─────────────────────────────────────────
 
 def fetch_gcp() -> Dict:
     if not GCP_KEY:
@@ -380,7 +372,6 @@ def fetch_gcp() -> Dict:
     }
 
 
-# ── Master fetcher ────────────────────────────────────────────────────────
 
 def fetch_all() -> Dict[str, Dict]:
     """Run all fetchers. One failure doesn't abort the rest."""

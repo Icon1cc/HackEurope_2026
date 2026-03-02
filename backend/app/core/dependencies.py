@@ -54,7 +54,6 @@ def get_cloud_pricing_repo(db: AsyncSession = Depends(get_db)) -> CloudPricingRe
     return CloudPricingRepository(db)
 
 
-# --- Services ---
 
 def get_invoice_service(repo: InvoiceRepository = Depends(get_invoice_repo)) -> InvoiceService:
     return InvoiceService(repo)
@@ -84,7 +83,6 @@ def get_cloud_pricing_service(
     return CloudPricingService(repo, market_data_repo=market_data_repo)
 
 
-# --- Auth ---
 
 _bearer_scheme = HTTPBearer()
 

@@ -17,14 +17,12 @@ STATUSES = ["pending", "flagged", "overcharge", "approved", "rejected", "paid"]
 
 
 async def seed():
-    # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     print("Tables created")
 
     async with AsyncSessionLocal() as db:
-        # Create client
         client = Client(
             id=uuid.uuid4(),
             name_of_business="TechCorp International",
@@ -57,7 +55,6 @@ async def seed():
         for v in vendors:
             print(f"Created vendor: {v.name} ({v.id})")
 
-        # Create 15 invoices per vendor
         for vendor in vendors:
             for i in range(15):
                 status = random.choice(STATUSES)
@@ -91,7 +88,6 @@ async def seed():
                 )
                 db.add(invoice)
 
-                # Create payment for approved/paid invoices
                 if status in ["approved", "paid"]:
                     payment = Payment(
                         id=uuid.uuid4(),
@@ -105,7 +101,6 @@ async def seed():
                     )
                     db.add(payment)
 
-                # Create override for flagged/overcharge/rejected
                 if status in ["flagged", "overcharge", "rejected"]:
                     override = Override(
                         id=uuid.uuid4(),
@@ -122,7 +117,6 @@ async def seed():
         await db.commit()
         print(f"\nSeeded 60 invoices (15 per vendor) with payments and overrides")
 
-        # Print summary
         for vendor in vendors:
             print(f"\n--- {vendor.name} ---")
             from sqlalchemy import select, func
