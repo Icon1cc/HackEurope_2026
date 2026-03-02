@@ -21,5 +21,4 @@ class Item(Base):
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
-    # Many items → one invoice
     invoice = relationship("Invoice", back_populates="items")

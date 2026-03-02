@@ -24,7 +24,5 @@ class Vendor(Base):
     stripe_account_id = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
-    # One vendor → many invoices
     invoices = relationship("Invoice", back_populates="vendor")
-    # One vendor → many overrides
     overrides = relationship("Override", back_populates="vendor")

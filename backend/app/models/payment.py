@@ -20,5 +20,4 @@ class Payment(Base):
     initiated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     confirmed_at = Column(DateTime(timezone=True), nullable=True)
 
-    # One payment → one invoice
     invoice = relationship("Invoice", back_populates="payment")

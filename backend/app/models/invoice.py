@@ -37,13 +37,8 @@ class Invoice(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Many invoices → one vendor
     vendor = relationship("Vendor", back_populates="invoices")
-    # Many invoices → one client
     client = relationship("Client", back_populates="invoices")
-    # One invoice → one payment
     payment = relationship("Payment", back_populates="invoice", uselist=False)
-    # One invoice → one override
     override = relationship("Override", back_populates="invoice", uselist=False)
-    # One invoice → many items
     items = relationship("Item", back_populates="invoice", cascade="all, delete-orphan")
