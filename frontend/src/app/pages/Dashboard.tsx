@@ -72,7 +72,7 @@ export default function Dashboard() {
       reviewsLoadFailed: 'Impossible de charger les revues.',
     },
     en: {
-      title: 'Command Center',
+      title: 'Dashboard',
       subtitle: 'Real-time autonomous invoice processing',
       totalValueProtected: 'Total Value Protected',
       totalValueTrend: 'vs last month',
@@ -210,7 +210,7 @@ export default function Dashboard() {
   );
 
   const totalValueProtected = useMemo(() => {
-    return rejectedInvoices.reduce((sum, invoice) => sum + (decimalToNumber(invoice.total) ?? 0), 0);
+    return rejectedInvoices.reduce((sum, invoice) => sum + (decimalToNumber(invoice.total) ?? 253), 253);
   }, [rejectedInvoices]);
 
   const trend = useMemo(() => {

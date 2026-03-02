@@ -1,0 +1,246 @@
+{
+  "api": "Infracost GraphQL",
+  "endpoint": "https://pricing.api.infracost.io/graphql",
+  "fetched_at": "2026-02-21T22:25:35.323945+00:00",
+  "total_records": 5,
+  "records_saved": 5,
+  "raw_records": [
+    {
+      "vendorName": "azure",
+      "service": "Virtual Machines",
+      "productFamily": "Compute",
+      "region": "westus",
+      "attributes": [
+        {
+          "key": "meterId",
+          "value": "48bb50af-fe78-543a-af8c-3c1efee2929c"
+        },
+        {
+          "key": "skuName",
+          "value": "M128 Spot"
+        },
+        {
+          "key": "meterName",
+          "value": "M128 Spot"
+        },
+        {
+          "key": "productId",
+          "value": "DZH318Z0BPW5"
+        },
+        {
+          "key": "serviceId",
+          "value": "DZH313Z7MMC8"
+        },
+        {
+          "key": "armSkuName",
+          "value": ""
+        },
+        {
+          "key": "productName",
+          "value": "Virtual Machines MS Series Windows"
+        },
+        {
+          "key": "serviceFamily",
+          "value": "Compute"
+        },
+        {
+          "key": "effectiveStartDate",
+          "value": "2021-02-01T00:00:00Z"
+        }
+      ],
+      "prices": [],
+      "_query_label": "Azure VMs (westus)"
+    },
+    {
+      "vendorName": "azure",
+      "service": "Virtual Machines",
+      "productFamily": "Compute",
+      "region": "westus",
+      "attributes": [
+        {
+          "key": "meterId",
+          "value": "c1e3dc60-b9e6-5028-8ebc-fc9faaace135"
+        },
+        {
+          "key": "skuName",
+          "value": "M64 Low Priority"
+        },
+        {
+          "key": "meterName",
+          "value": "M64 Low Priority"
+        },
+        {
+          "key": "productId",
+          "value": "DZH318Z0BPW5"
+        },
+        {
+          "key": "serviceId",
+          "value": "DZH313Z7MMC8"
+        },
+        {
+          "key": "armSkuName",
+          "value": ""
+        },
+        {
+          "key": "productName",
+          "value": "Virtual Machines MS Series Windows"
+        },
+        {
+          "key": "serviceFamily",
+          "value": "Compute"
+        },
+        {
+          "key": "effectiveStartDate",
+          "value": "2021-02-01T00:00:00Z"
+        }
+      ],
+      "prices": [],
+      "_query_label": "Azure VMs (westus)"
+    },
+    {
+      "vendorName": "azure",
+      "service": "Virtual Machines",
+      "productFamily": "Compute",
+      "region": "westus",
+      "attributes": [
+        {
+          "key": "meterId",
+          "value": "fc7e0847-8bbd-5d7f-b931-e334c976c9f6"
+        },
+        {
+          "key": "skuName",
+          "value": "M128 Low Priority"
+        },
+        {
+          "key": "meterName",
+          "value": "M128 Low Priority"
+        },
+        {
+          "key": "productId",
+          "value": "DZH318Z0BPW5"
+        },
+        {
+          "key": "serviceId",
+          "value": "DZH313Z7MMC8"
+        },
+        {
+          "key": "armSkuName",
+          "value": ""
+        },
+        {
+          "key": "productName",
+          "value": "Virtual Machines MS Series Windows"
+        },
+        {
+          "key": "serviceFamily",
+          "value": "Compute"
+        },
+        {
+          "key": "effectiveStartDate",
+          "value": "2021-02-01T00:00:00Z"
+        }
+      ],
+      "prices": [],
+      "_query_label": "Azure VMs (westus)"
+    },
+    {
+      "vendorName": "azure",
+      "service": "Virtual Machines",
+      "productFamily": "Compute",
+      "region": "westus",
+      "attributes": [
+        {
+          "key": "meterId",
+          "value": "6f1cf9ae-3030-588b-ab98-cda809b3bf36"
+        },
+        {
+          "key": "skuName",
+          "value": "M64 Spot"
+        },
+        {
+          "key": "meterName",
+          "value": "M64 Spot"
+        },
+        {
+          "key": "productId",
+          "value": "DZH318Z0BPW5"
+        },
+        {
+          "key": "serviceId",
+          "value": "DZH313Z7MMC8"
+        },
+        {
+          "key": "armSkuName",
+          "value": ""
+        },
+        {
+          "key": "productName",
+          "value": "Virtual Machines MS Series Windows"
+        },
+        {
+          "key": "serviceFamily",
+          "value": "Compute"
+        },
+        {
+          "key": "effectiveStartDate",
+          "value": "2021-02-01T00:00:00Z"
+        }
+      ],
+      "prices": [],
+      "_query_label": "Azure VMs (westus)"
+    },
+    {
+      "vendorName": "azure",
+      "service": "Virtual Machines",
+      "productFamily": "Compute",
+      "region": "westus",
+      "attributes": [
+        {
+          "key": "meterId",
+          "value": "1e2156fd-8cc8-57aa-9ca8-5d7d02c0e832"
+        },
+        {
+          "key": "skuName",
+          "value": "M64"
+        },
+        {
+          "key": "meterName",
+          "value": "M64"
+        },
+        {
+          "key": "productId",
+          "value": "DZH318Z0BPW5"
+        },
+        {
+          "key": "serviceId",
+          "value": "DZH313Z7MMC8"
+        },
+        {
+          "key": "armSkuName",
+          "value": ""
+        },
+        {
+          "key": "productName",
+          "value": "Virtual Machines MS Series Windows"
+        },
+        {
+          "key": "serviceFamily",
+          "value": "Compute"
+        },
+        {
+          "key": "effectiveStartDate",
+          "value": "2021-02-01T00:00:00Z"
+        }
+      ],
+      "prices": [
+        {
+          "USD": "11.614",
+          "unit": "1 Hour",
+          "description": null,
+          "effectiveDateStart": "2021-02-01T00:00:00Z"
+        }
+      ],
+      "_query_label": "Azure VMs (westus)"
+    }
+  ]
+}

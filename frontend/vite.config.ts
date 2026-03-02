@@ -19,6 +19,7 @@ export default defineConfig({
     sourcemap: false,
     minify: 'esbuild',
     rollupOptions: {
+      external: ['@stripe/stripe-js', '@stripe/react-stripe-js'],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router'],
@@ -34,6 +35,21 @@ export default defineConfig({
     port: 3000,
     strictPort: false,
     open: true,
+    proxy: {
+      // Proxy @paid-ai/paid-blocks component requests to FastAPI backend.
+      // Components call /api/{endpoint}/{customerExternalId} (Next.js pattern).
+      // Existing frontend uses absolute URLs (http://127.0.0.1:8000/...) so no conflict.
+      '/api/usage': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/usage/, '/api/v1/paid-blocks/usage'),
+      },
+      '/api/invoices': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/invoices/, '/api/v1/paid-blocks/invoices'),
+      },
+    },
   },
 
   preview: {

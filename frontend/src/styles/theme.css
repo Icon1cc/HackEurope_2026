@@ -202,3 +202,38 @@
     line-height: 1.5;
   }
 }
+
+/* ── @paid-ai/paid-blocks dark-theme overrides ──────────────── */
+.paid-dark-override .paid-usage-table-table-wrapper,
+.paid-dark-override .paid-invoice-table-wrapper {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.paid-dark-override .paid-usage-table-header,
+.paid-dark-override .paid-invoice-header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.paid-dark-override .paid-usage-table-table th,
+.paid-dark-override .paid-invoice-table th {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.paid-dark-override .paid-usage-table-table td,
+.paid-dark-override .paid-invoice-table td {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.paid-dark-override .paid-usage-table-table-wrapper > div,
+.paid-dark-override .paid-invoice-table-wrapper > div {
+  background: transparent !important;
+}
+
+.paid-dark-override .paid-invoice-status {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.paid-dark-override .paid-invoice-action-btn {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}

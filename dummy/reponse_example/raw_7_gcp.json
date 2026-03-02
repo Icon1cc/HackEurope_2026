@@ -1,0 +1,124 @@
+{
+  "api": "GCP Cloud Billing Catalog API v1",
+  "endpoint": "https://cloudbilling.googleapis.com/v1/services/{serviceId}/skus",
+  "auth": "API key (query param)",
+  "fetched_at": "2026-02-21T22:26:14.415548+00:00",
+  "services_queried": [
+    "Compute Engine",
+    "Cloud Storage",
+    "Cloud SQL"
+  ],
+  "records_saved": 5,
+  "raw_records": [
+    {
+      "skuId": "0001-B904-8A40",
+      "name": "services/6F81-5844-456A/skus/0001-B904-8A40",
+      "description": "Sole Tenancy Premium for C4 Sole Tenancy Instance Core running in Santiago",
+      "service": "Compute Engine",
+      "serviceId": "6F81-5844-456A",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "CPU",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "southamerica-west1"
+      ],
+      "usageUnit": "h",
+      "usageUnitDescription": "hour",
+      "priceUSD": 0.00495495,
+      "currencyCode": "USD",
+      "effectiveTime": "2026-02-21T08:00:00Z",
+      "summary": ""
+    },
+    {
+      "skuId": "0001-FC8F-A9AF",
+      "name": "services/6F81-5844-456A/skus/0001-FC8F-A9AF",
+      "description": "Spot Preemptible E2 Custom Instance Core running in Paris",
+      "service": "Compute Engine",
+      "serviceId": "6F81-5844-456A",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "CPU",
+        "usageType": "Preemptible"
+      },
+      "serviceRegions": [
+        "europe-west9"
+      ],
+      "usageUnit": "h",
+      "usageUnitDescription": "hour",
+      "priceUSD": 0.00903,
+      "currencyCode": "USD",
+      "effectiveTime": "2026-02-21T08:00:00Z",
+      "summary": ""
+    },
+    {
+      "skuId": "0006-C9C8-BB6F",
+      "name": "services/6F81-5844-456A/skus/0006-C9C8-BB6F",
+      "description": "Commitment v1: Memory-optimized Cpu in Phoenix for 1 Year",
+      "service": "Compute Engine",
+      "serviceId": "6F81-5844-456A",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "CPU",
+        "usageType": "Commit1Yr"
+      },
+      "serviceRegions": [
+        "us-west8"
+      ],
+      "usageUnit": "h",
+      "usageUnitDescription": "hour",
+      "priceUSD": 0.02055,
+      "currencyCode": "USD",
+      "effectiveTime": "2026-02-21T08:00:00Z",
+      "summary": ""
+    },
+    {
+      "skuId": "0007-4724-5A32",
+      "name": "services/6F81-5844-456A/skus/0007-4724-5A32",
+      "description": "Sole Tenancy Premium for C4 Sole Tenancy Instance Core running in Finland",
+      "service": "Compute Engine",
+      "serviceId": "6F81-5844-456A",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "CPU",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "europe-north1"
+      ],
+      "usageUnit": "h",
+      "usageUnitDescription": "hour",
+      "priceUSD": 0.003815312,
+      "currencyCode": "USD",
+      "effectiveTime": "2026-02-21T08:00:00Z",
+      "summary": ""
+    },
+    {
+      "skuId": "0007-9388-EF75",
+      "name": "services/6F81-5844-456A/skus/0007-9388-EF75",
+      "description": "M4Ultramem224 Sole Tenancy Instance Ram running in Toronto",
+      "service": "Compute Engine",
+      "serviceId": "6F81-5844-456A",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "RAM",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "northamerica-northeast2"
+      ],
+      "usageUnit": "GBy.h",
+      "usageUnitDescription": "gigabyte hour",
+      "priceUSD": 0.00624347,
+      "currencyCode": "USD",
+      "effectiveTime": "2026-02-21T08:00:00Z",
+      "summary": ""
+    }
+  ]
+}
